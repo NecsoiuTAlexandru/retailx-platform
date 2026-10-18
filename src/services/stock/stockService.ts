@@ -58,6 +58,13 @@ export class StockService {
   private rezervari = new Map<string, RezervareStoc>();
   /** rezervare consumată → câte ieșiri din stoc mai așteptăm să fie procesate */
   private iesiriAsteptate = new Map<string, number>();
+  /**
+   * S7 (optimizare NFR-01): cantitatea rezervată ținută indexat pe magazin|produs și setul
+   * rezervărilor care pot expira, ca o interogare de disponibilitate să nu parcurgă toate
+   * rezervările (alocările comenzilor confirmate se adună în timp).
+   */
+  private rezervatIndex = new Map<string, number>();
+  private temporare = new Set<string>();
   private nextId = 1;
   readonly processor: SaleEventProcessor;
 
@@ -99,7 +106,7 @@ export class StockService {
         const ramase = this.iesiriAsteptate.get(e.ref)! - 1;
         if (ramase <= 0) {
           this.iesiriAsteptate.delete(e.ref);
-          this.rezervari.delete(e.ref);
+          this.sterge(e.ref);
         } else this.iesiriAsteptate.set(e.ref, ramase);
       }
     }
@@ -134,18 +141,42 @@ export class StockService {
     return [...this.central.magazine.keys()].map((m) => this.disponibilitate(m, codProdus));
   }
 
+  /** Câte rezervări sunt active (pentru monitorizare și testul de încărcare). */
+  rezervariActive(): number {
+    this.expiraRezervari();
+    return this.rezervari.size;
+  }
+
   private vandabil(idMagazin: string, codProdus: string): number {
     const fizic = this.cache.get(key(idMagazin, codProdus))?.cantitate ?? 0;
     return Math.max(0, fizic - STOC_SIGURANTA - this.rezervat(idMagazin, codProdus));
   }
 
   private rezervat(idMagazin: string, codProdus: string): number {
-    let total = 0;
-    for (const r of this.rezervari.values()) {
-      if (r.idMagazin !== idMagazin) continue;
-      for (const l of r.linii) if (l.codProdus === codProdus) total += l.cantitate;
+    return this.rezervatIndex.get(key(idMagazin, codProdus)) ?? 0;
+  }
+
+  private adaugaRezervare(r: RezervareStoc): void {
+    this.rezervari.set(r.id, r);
+    if (Number.isFinite(r.expira)) this.temporare.add(r.id);
+    for (const l of r.linii) {
+      const k = key(r.idMagazin, l.codProdus);
+      this.rezervatIndex.set(k, (this.rezervatIndex.get(k) ?? 0) + l.cantitate);
     }
-    return total;
+  }
+
+  private sterge(id: string): boolean {
+    const r = this.rezervari.get(id);
+    if (!r) return false;
+    this.rezervari.delete(id);
+    this.temporare.delete(id);
+    for (const l of r.linii) {
+      const k = key(r.idMagazin, l.codProdus);
+      const ramas = (this.rezervatIndex.get(k) ?? 0) - l.cantitate;
+      if (ramas > 0) this.rezervatIndex.set(k, ramas);
+      else this.rezervatIndex.delete(k);
+    }
+    return true;
   }
 
   // ---------- US-02: rezervare la plată ----------
@@ -167,7 +198,7 @@ export class StockService {
       creata: now,
       expira: now + DURATA_REZERVARE_MS,
     };
-    this.rezervari.set(r.id, r);
+    this.adaugaRezervare(r);
     return r;
   }
 
@@ -177,7 +208,7 @@ export class StockService {
   }
 
   elibereaza(id: string): boolean {
-    return this.rezervari.delete(id);
+    return this.sterge(id);
   }
 
   /** Plata autorizată: rezervarea devine alocare pentru comandă și nu mai expiră. */
@@ -186,6 +217,7 @@ export class StockService {
     if (!r) throw new Error(`Rezervare inexistentă sau expirată: ${id}`);
     r.expira = Number.POSITIVE_INFINITY;
     r.nrComanda = nrComanda;
+    this.temporare.delete(id);
   }
 
   /**
@@ -197,7 +229,7 @@ export class StockService {
     if (!r) return;
     const valide = iesiri.filter((i) => i.cantitate > 0);
     if (!valide.length) {
-      this.rezervari.delete(id);
+      this.sterge(id);
       return;
     }
     this.iesiriAsteptate.set(id, valide.length);
@@ -211,7 +243,7 @@ export class StockService {
 
   private expiraRezervari(): void {
     const now = this.clock.now();
-    for (const [id, r] of this.rezervari) if (r.expira <= now) this.rezervari.delete(id);
+    for (const id of this.temporare) if (this.rezervari.get(id)!.expira <= now) this.sterge(id);
   }
 }
 

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RetailX · KPI</title>
+<style>
+  :root { --verde:#1f5c4a; --rosu:#b3261e; --galben:#8a5a00; --fond:#f4f5f3; --card:#fff; --text:#1d2420; --gri:#66706b; --linie:#dde2df; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--fond); color:var(--text); }
+  main { max-width:900px; margin:0 auto; padding:24px 16px; display:flex; flex-direction:column; gap:16px; }
+  h1 { margin:0; font-size:22px; } .mic { color:var(--gri); font-size:13px; }
+  .grila { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--linie); border-radius:12px; padding:16px; }
+  .valoare { font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .stare { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .ok { background:#e1f2e7; color:var(--verde); } .nu { background:#fbe5e3; color:var(--rosu); } .prov { background:#fbf1dc; color:var(--galben); }
+  input { font:inherit; padding:6px 8px; border:1px solid var(--linie); border-radius:8px; }
+</style>
+</head>
+<body>
+<main>
+  <div><h1>KPI de valoare · cohortă lunară</h1>
+    <div class="mic">Definițiile din fișa inițiativei. Luna: <input type="month" id="luna"></div></div>
+  <div class="grila" id="kpi"></div>
+  <div class="card"><b>Indicatori de control</b><div id="control" class="mic"></div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const pct = (x) => (x === null ? "—" : (x * 100).toLocaleString("ro-RO", { maximumFractionDigits: 1 }) + "%");
+const stare = (atinsa, provizoriu) => provizoriu ? '<span class="stare prov">provizoriu</span>'
+  : atinsa === null ? '<span class="stare prov">fără date</span>' : atinsa ? '<span class="stare ok">țintă atinsă</span>' : '<span class="stare nu">sub țintă</span>';
+async function incarca() {
+  const r = await (await fetch(`/api/kpi/${$("luna").value}`)).json();
+  $("kpi").innerHTML = `
+    <div class="card"><div class="mic">KPI 1 · Rata de finalizare</div><div class="valoare">${pct(r.finalizare.rata)}</div>
+      <div class="mic">${r.finalizare.confirmate} confirmate / ${r.finalizare.sesiuni} sesiuni · țintă ≥ ${pct(r.finalizare.tinta)}</div>${stare(r.finalizare.atinsa)}</div>
+    <div class="card"><div class="mic">KPI 2 · Anulări integrale din lipsă de stoc</div><div class="valoare">${pct(r.anulari.rata)}</div>
+      <div class="mic">${r.anulari.anulateLipsaStoc} / ${r.anulari.confirmate} comenzi confirmate · țintă ≤ ${pct(r.anulari.tinta)}</div>${stare(r.anulari.atinsa)}</div>
+    <div class="card"><div class="mic">KPI 3 · Recumpărare în 60 de zile</div><div class="valoare">${pct(r.recumparare.rata)}</div>
+      <div class="mic">${r.recumparare.revenit} / ${r.recumparare.clienti} clienți · țintă ≥ ${pct(r.recumparare.tinta)}</div>${stare(r.recumparare.atinsa, r.recumparare.clienti > 0 && !r.recumparare.fereastraCompleta)}</div>`;
+  $("control").innerHTML = `Comenzi onorate: ${r.control.comenziOnorate} · Pondere comenzi cu înlocuire: ${pct(r.control.pondereInlocuiri)} · Timp mediu de pregătire: ${r.control.timpMediuPregatireMin ?? "—"} min`;
+}
+$("luna").value = new Date().toISOString().slice(0, 7);
+$("luna").onchange = incarca;
+incarca();
+</script>
+</body>
+</html>

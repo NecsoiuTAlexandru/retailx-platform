@@ -73,3 +73,15 @@ Sprint Goal: „Clientul face retur din cont.” (US-10 8 SP)
 - Statusul returului vizibil în cont, cu termenul rambursării; comanda devine „Returnată” la returul integral; punctele aferente sumei rambursate se retrag.
 - Aplicația mobilă: ecranul „Retur”.
 - Teste: TC-13 + testul end-to-end omnichannel (căutare → plată → înlocuire → ridicare → puncte → retur). Decizia PO: US-10 acceptat.
+
+## S7 — tag `s7`
+Sprint Goal: „KPI-urile se măsoară corect și platforma rezistă la vârf.” (US-11 8 SP, NFR-01 5 SP)
+
+- Serviciul KPI, cu definițiile din fișa inițiativei: rata de finalizare (o sesiune = o comandă), anulări integrale din lipsă de stoc, recumpărare în 60 de zile pe cohorta primei comenzi onorate.
+- Evenimentele de măsurare vin direct din platformă: deschiderea finalizării, confirmare, anulare din lipsă de stoc, onorare.
+- Recumpărarea e marcată provizorie până se încheie fereastra de 60 de zile pentru toată cohorta.
+- Indicatori de control: ponderea comenzilor cu înlocuire, timpul mediu de pregătire.
+- Pagina KPI (`/kpi.html`) pentru Directorul E-commerce.
+- Optimizare: cantitățile rezervate indexate pe magazin|produs; expirarea parcurge doar rezervările temporare.
+- Instrument de test de încărcare (`npm run load`).
+- Teste: TC-14 (KPI = calcul manual), TC-15 (250 de clienți simultan: p95 sub 3 s, zero erori, nicio comandă pierdută). Decizia PO: US-11, NFR-01 acceptate.

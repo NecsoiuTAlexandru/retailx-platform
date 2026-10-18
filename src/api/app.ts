@@ -118,6 +118,12 @@ export function createApp(p: Platform) {
   });
   app.post("/api/magazin/retururi/:id/primit", (req, res) => res.json(p.retururi.primesteProdusul(req.params.id)));
 
+  // ---------- S7 · US-11: KPI pe cohorta lunară ----------
+  app.get("/api/kpi/:luna", (req, res) => {
+    if (!/^\d{4}-\d{2}$/.test(req.params.luna)) return res.status(400).json({ eroare: "Luna are forma AAAA-LL" });
+    res.json(p.kpi.raport(req.params.luna));
+  });
+
   // ---------- Magazin: pregătire și predare ----------
   app.post("/api/magazin/comenzi/:nr/pregatire", (req, res) => res.json(p.fulfillment.incepePregatirea(req.params.nr)));
   app.post("/api/magazin/comenzi/:nr/gata", (req, res) => res.json(p.fulfillment.finalizeazaPregatirea(req.params.nr)));

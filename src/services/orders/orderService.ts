@@ -85,9 +85,13 @@ export class OrderService {
     private readonly bus: DomainBus,
   ) {}
 
+  /** S7: anunță măsurarea KPI că s-a deschis finalizarea comenzii (începutul unei sesiuni). */
+  laFinalizare: (idCos: string) => void = () => {};
+
   /** Pașii 1–4: costul total defalcat, afișat înainte de plată. */
   deviz(idCos: string, tipPrimire: TipPrimire): Deviz {
     const c = this.cart.get(idCos);
+    if (c.linii.length) this.laFinalizare(idCos);
     return this.pricing.deviz(c.linii, tipPrimire, this.reduceriPentru(idCos));
   }
 

@@ -20,6 +20,7 @@ import { NotificationService } from "./services/notifications/notificationServic
 import { PickingService } from "./services/picking/pickingService.js";
 import { LoyaltyService } from "./services/loyalty/loyaltyService.js";
 import { ReturnService } from "./services/returns/returnService.js";
+import { KpiService } from "./services/kpi/kpiService.js";
 
 export interface PlatformOptions {
   clock: Clock;
@@ -51,11 +52,13 @@ export function createPlatform({ clock, seed = true, incarca = true, capacitateI
   const fidelitate = new LoyaltyService(clock, bus, central, cart, consent);
   orders.reduceriPentru = (idCos) => fidelitate.reduceri(idCos);
   const retururi = new ReturnService(clock, orders, central, curier, fidelitate, notificari);
+  const kpi = new KpiService(clock, bus);
+  orders.laFinalizare = (idCos) => kpi.inceputFinalizare(idCos);
 
   if (incarca) stock.incarcaInitial();
   return {
     clock, bus, central, procesator, curier,
-    stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking, fidelitate, retururi,
+    stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking, fidelitate, retururi, kpi,
   };
 }
 
