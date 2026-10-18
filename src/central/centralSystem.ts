@@ -28,6 +28,15 @@ export interface SaleEvent {
   ref?: string;
 }
 
+export interface BonCasa {
+  nrBon: string;
+  idMagazin: string;
+  /** Valoarea bonului, în bani. */
+  suma: number;
+  codCard?: string;
+  la: number;
+}
+
 export class CentralUnavailableError extends Error {
   constructor() {
     super("Sistemul central de gestiune nu răspunde");
@@ -153,6 +162,22 @@ export class CentralSystemSimulator {
     if (this.online) this.dispatch(e);
     else this.buffered.push(e);
     return e;
+  }
+
+  // ---------- Bonuri de casă (S5: fidelitate comună pe canale) ----------
+
+  private bonHandlers: ((b: BonCasa) => void)[] = [];
+  private nrBon = 1;
+
+  onBon(handler: (b: BonCasa) => void): void {
+    this.bonHandlers.push(handler);
+  }
+
+  /** Bon emis la casa magazinului; dacă clientul a scanat cardul, bonul îl conține. */
+  emiteBon(idMagazin: string, suma: number, codCard?: string): BonCasa {
+    const b: BonCasa = { nrBon: `B-${idMagazin}-${this.nrBon++}`, idMagazin, suma, codCard, la: this.clock.now() };
+    this.bonHandlers.forEach((h) => h(b));
+    return b;
   }
 
   private dispatch(e: SaleEvent): void {

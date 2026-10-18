@@ -30,6 +30,7 @@
   <nav id="nav">
     <button data-ecran="cos" aria-current="page">Coș</button>
     <button data-ecran="comenzi">Comenzi</button>
+    <button data-ecran="card">Card</button>
   </nav>
 </div>
 
@@ -79,6 +80,24 @@ ECRANE.comenzi = { titlu: "Comenzile tale", subtitlu: "Statusul se actualizează
       ${pasi.map(([s, eticheta]) => `<div class="linie"><span>${atins[s] ? "✓" : "○"} ${eticheta}</span><span class="mic">${atins[s] ? ora(atins[s]) : ""}</span></div>`).join("")}
       ${inlocuiri}${eliminate}${cod}${urmarire}</div>`;
   }).join("");
+}};
+
+// ---------- S5 · US-08: același card în toate canalele ----------
+const SURSE = { magazin: "Bon magazin", online: "Comanda online", folosire: "Folosite la comanda", restituire: "Restituite, comanda", retur: "Retur, comanda" };
+ECRANE.card = { titlu: "Cardul meu RetailX", subtitlu: "Același card în magazin, pe website și în aplicație", async randeaza() {
+  const { profil, oferta } = await api(`/api/clienti/${CLIENT}/card`);
+  const istoric = [...profil.istoric].reverse().slice(0, 6).map((m) =>
+    `<div class="linie"><span>${SURSE[m.sursa]} ${m.ref}</span><b style="color:${m.puncte > 0 ? "var(--verde)" : "var(--rosu)"}">${m.puncte > 0 ? "+" : ""}${m.puncte}</b></div>`).join("");
+  return `
+    <div class="card" style="background:var(--verde);color:#fff">
+      <div style="font-size:13px;opacity:.85">Nivel ${profil.nivel} · ${profil.nume}</div>
+      <div style="font-size:34px;font-weight:800">${profil.puncte.toLocaleString("ro-RO")} puncte</div>
+      <div style="font-size:13px;opacity:.85">≈ ${leiFmt(profil.puncte)} reducere la următoarea comandă</div>
+      <div style="background:#fff;color:#000;border-radius:8px;margin-top:12px;padding:10px;text-align:center;font:600 18px ui-monospace,monospace;letter-spacing:.15em">${profil.codCard}</div>
+    </div>
+    <div class="card"><b>Ultimele puncte</b>${istoric || '<p class="mic">Încă nu ai puncte.</p>'}</div>
+    <div class="card"><b>Oferta ta săptămâna asta</b><div>${oferta.text}</div>
+      <div class="mic">${oferta.personalizata ? "Recomandare personalizată: activă pentru că ți-ai dat acordul." : "Recomandări personalizate: oprite. Le poți activa din Setări › Confidențialitate."}</div></div>`;
 }};
 
 async function arata(ecran) {

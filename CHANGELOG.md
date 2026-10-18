@@ -54,3 +54,13 @@ Sprint Goal: „Clientul e informat și comanda nu se anulează pentru un produs
 - Aplicația mobilă: ecranul „Comenzi” cu pașii statusului, înlocuirile și codul de ridicare.
 - Teste: TC-10 și TC-11a trecute. **TC-11b eșuat → DEF-02** (înlocuitorul putea fi mai scump), marcat `it.fails`.
 - Decizia PO: respins parțial — US-07 acceptat, US-09 reluat în S5.
+
+## S5 — tag `s5`
+Sprint Goal: „Un singur card de fidelitate în toate canalele.” (US-08 13 SP + DEF-02)
+
+- **DEF-02 remediat**: înlocuitorul are preț egal sau mai mic; se alege cel mai apropiat ca preț. Retest TC-11b trecut.
+- Profil unic de client și card de fidelitate comun: bonurile din magazin (cu cardul scanat) și comenzile online ajung în același profil.
+- Puncte online doar la „Onorată”, pe suma efectiv plătită; 100 de puncte = 1 leu reducere, afișată în costul total înainte de plată; punctele se restituie la anulare.
+- Niveluri Bronz / Argint / Aur; oferta personalizată doar cu acordul „recomandări”; exportul datelor personale (art. 15 GDPR) — sprijin pentru DPIA cu DPO.
+- Aplicația mobilă: ecranul „Card”; website: puncte de primit și folosirea punctelor.
+- Teste: TC-12 + retest TC-11. Decizia PO: US-08 și US-09 acceptate.

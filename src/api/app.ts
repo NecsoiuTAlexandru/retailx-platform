@@ -15,6 +15,7 @@ import {
 import { IntervalIndisponibilError } from "../services/fulfillment/slotService.js";
 import { CodRidicareGresitError } from "../services/fulfillment/fulfillmentService.js";
 import { TranzitieInvalidaError } from "../domain/orderState.js";
+import { PuncteInsuficienteError } from "../services/loyalty/loyaltyService.js";
 import { ProdusNecunoscutError } from "../services/pricing/pricingService.js";
 
 export function createApp(p: Platform) {
@@ -96,6 +97,18 @@ export function createApp(p: Platform) {
     res.json(p.consent.seteaza(req.params.idClient, tip, Boolean(req.body.acordat)));
   });
 
+  // ---------- S5 · US-08: cardul de fidelitate comun ----------
+  app.get("/api/clienti/:idClient/card", (req, res) => {
+    const profil = p.fidelitate.profil(req.params.idClient);
+    if (!profil) return res.status(404).json({ eroare: "Clientul nu are card de fidelitate" });
+    res.json({ profil, oferta: p.fidelitate.oferta(req.params.idClient) });
+  });
+  app.put("/api/cos/:id/puncte", (req, res) => {
+    p.fidelitate.folosestePuncte(req.params.id, Number(req.body.puncte ?? 0));
+    res.json(p.cart.get(req.params.id));
+  });
+  app.get("/api/clienti/:idClient/date-personale", (req, res) => res.json(p.fidelitate.exportaDate(req.params.idClient)));
+
   // ---------- Magazin: pregătire și predare ----------
   app.post("/api/magazin/comenzi/:nr/pregatire", (req, res) => res.json(p.fulfillment.incepePregatirea(req.params.nr)));
   app.post("/api/magazin/comenzi/:nr/gata", (req, res) => res.json(p.fulfillment.finalizeazaPregatirea(req.params.nr)));
@@ -105,6 +118,9 @@ export function createApp(p: Platform) {
   // ---------- Simulări pentru demo (mediul de test) ----------
   app.post("/api/demo/vinde-la-casa", (req, res) => {
     res.json(p.central.vindeLaCasa(req.body.idMagazin, req.body.codProdus, Number(req.body.cantitate ?? 1)));
+  });
+  app.post("/api/demo/bon", (req, res) => {
+    res.json(p.central.emiteBon(req.body.idMagazin, Number(req.body.suma), req.body.codCard));
   });
   app.post("/api/demo/sistem-central", (req, res) => {
     p.central.setOnline(Boolean(req.body.online));
@@ -125,6 +141,7 @@ export function createApp(p: Platform) {
     if (err instanceof IntervalIndisponibilError) return res.status(409).json({ eroare: err.message });
     if (err instanceof CodRidicareGresitError) return res.status(403).json({ eroare: err.message });
     if (err instanceof TranzitieInvalidaError) return res.status(409).json({ eroare: err.message });
+    if (err instanceof PuncteInsuficienteError) return res.status(400).json({ eroare: err.message });
     if (err instanceof ProdusNecunoscutError) return res.status(404).json({ eroare: err.message });
     console.error(err);
     res.status(500).json({ eroare: "Eroare internă" });

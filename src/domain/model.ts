@@ -113,6 +113,8 @@ export interface Comanda {
   costTotal: Bani;
   plati: Plata[];
   rambursari?: { suma: Bani; motiv: string; la: number }[];
+  /** Puncte de fidelitate folosite ca reducere (S5). */
+  puncteFolosite?: number;
   rezervareId?: string;
   dataCrearii: number;
   dataConfirmarii?: number;

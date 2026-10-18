@@ -100,6 +100,7 @@
         <button class="btn" id="plateste">Plătește</button>
         <button class="btn sec" id="goleste">Golește coșul</button>
       </div>
+      <div id="puncte" class="mic" style="margin-top:8px"></div>
       <div id="rezervare" class="mic"></div>
       <div id="mesaj"></div>
     </section>
@@ -209,7 +210,7 @@ async function afiseazaIntervale() {
 
 async function afiseazaDeviz(areProduse) {
   await afiseazaIntervale();
-  if (!areProduse) { $("deviz").innerHTML = ""; devizCurent = null; $("plateste").textContent = "Plătește"; return; }
+  if (!areProduse) { $("deviz").innerHTML = ""; $("puncte").textContent = ""; devizCurent = null; $("plateste").textContent = "Plătește"; return; }
   const d = await api(`/api/cos/${COS}/deviz`, { method: "POST", body: { tipPrimire: tipPrimire() } });
   devizCurent = d;
   const rand = (eticheta, suma) => `<tr><td>${eticheta}</td><td>${suma}</td></tr>`;
@@ -220,6 +221,16 @@ async function afiseazaDeviz(areProduse) {
     d.reduceri.map((r) => rand(r.descriere, "−" + leiFmt(r.suma))).join("") +
     `<tr><td><b>Total de plată</b></td><td><b>${leiFmt(d.total)}</b></td></tr>`;
   $("plateste").textContent = `Plătește ${leiFmt(d.total)}`;
+  // S5 · US-08: punctele, aceleași în magazin și online
+  if (COS.startsWith("client:")) {
+    const cos = await api(`/api/cos/${COS}`);
+    const { profil } = await api("/api/clienti/ana/card");
+    const pot = Math.min(profil.puncte, 500);
+    $("puncte").innerHTML = `Primești ${Math.floor(d.total / 100)} de puncte, valabile și în magazin.` +
+      (pot ? ` <label><input type="checkbox" id="folosestePuncte" ${cos.puncteFolosite ? "checked" : ""}> Folosește ${pot} puncte (−${leiFmt(pot)})</label>` : "");
+    const box = $("folosestePuncte");
+    if (box) box.onchange = async () => { await api(`/api/cos/${COS}/puncte`, { method: "PUT", body: { puncte: box.checked ? pot : 0 } }); afiseazaCos(); };
+  } else $("puncte").textContent = "";
 }
 
 async function initiazaPlata() {

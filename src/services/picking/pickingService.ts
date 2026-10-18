@@ -93,17 +93,22 @@ export class PickingService {
   }
 
   /**
-   * Produs similar pentru linia lipsă: aceeași categorie, aceeași regulă SGR, pe raft în magazin.
+   * Produs similar pentru linia lipsă: aceeași categorie, aceeași regulă SGR, pe raft în magazin
+   * și la PREȚ EGAL SAU MAI MIC decât cel plătit (remedierea DEF-02, S5).
+   * Dintre candidați îl alegem pe cel mai apropiat ca preț, ca diferența rambursată să fie minimă.
    */
   propuneInlocuitor(idMagazin: string, linie: LinieComanda, cantitate: number): Produs | undefined {
     const original = this.central.produse.get(linie.codProdus);
     if (!original?.categorie) return undefined;
-    return [...this.central.produse.values()].find(
-      (p) =>
-        p.cod !== original.cod &&
-        p.categorie === original.categorie &&
-        p.areGarantieSGR === original.areGarantieSGR &&
-        this.central.stocReal(idMagazin, p.cod) >= cantitate,
-    );
+    return [...this.central.produse.values()]
+      .filter(
+        (p) =>
+          p.cod !== original.cod &&
+          p.categorie === original.categorie &&
+          p.areGarantieSGR === original.areGarantieSGR &&
+          p.pret <= linie.pretUnitar &&
+          this.central.stocReal(idMagazin, p.cod) >= cantitate,
+      )
+      .sort((a, b) => b.pret - a.pret)[0];
   }
 }

@@ -28,6 +28,8 @@ export interface Cos {
   actualizatDin?: Canal;
   /** US-09: „Accept un produs înlocuitor similar, la preț egal sau mai mic” — activat explicit de client. */
   acceptaInlocuire?: boolean;
+  /** S5: puncte de fidelitate folosite ca reducere la această comandă. */
+  puncteFolosite?: number;
 }
 
 export interface VerificareLinie {
@@ -178,5 +180,6 @@ export class CartService {
     const c = this.get(id);
     c.linii = [];
     c.rezervareId = undefined;
+    c.puncteFolosite = undefined;
   }
 }

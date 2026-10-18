@@ -18,6 +18,7 @@ import { FulfillmentService } from "./services/fulfillment/fulfillmentService.js
 import { ConsentService } from "./services/consent/consentService.js";
 import { NotificationService } from "./services/notifications/notificationService.js";
 import { PickingService } from "./services/picking/pickingService.js";
+import { LoyaltyService } from "./services/loyalty/loyaltyService.js";
 
 export interface PlatformOptions {
   clock: Clock;
@@ -46,9 +47,14 @@ export function createPlatform({ clock, seed = true, incarca = true, capacitateI
   const consent = new ConsentService(clock);
   const notificari = new NotificationService(clock, bus, consent);
   const picking = new PickingService(orders, fulfillment, central, notificari);
+  const fidelitate = new LoyaltyService(clock, bus, central, cart, consent);
+  orders.reduceriPentru = (idCos) => fidelitate.reduceri(idCos);
 
   if (incarca) stock.incarcaInitial();
-  return { clock, bus, central, procesator, curier, stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking };
+  return {
+    clock, bus, central, procesator, curier,
+    stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking, fidelitate,
+  };
 }
 
 export type Platform = ReturnType<typeof createPlatform>;

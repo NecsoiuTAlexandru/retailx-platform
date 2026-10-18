@@ -62,11 +62,10 @@ describe("US-09 · înlocuirea produsului lipsă cu acordul clientului", () => {
   });
 
   /**
-   * DEF-02 (majoră), găsit la review-ul cu expertul în domeniu din S4: înlocuitorul putea fi
-   * MAI SCUMP decât produsul comandat. Regula din BRD: „preț egal sau mai mic; altfel se elimină
-   * doar linia lipsă”. US-09 respins parțial; se reia în S5.
+   * DEF-02 (majoră), găsit în S4: înlocuitorul putea fi mai scump decât produsul comandat.
+   * Remediat în S5 (filtru de preț în propuneInlocuitor) — retest TC-11b trecut.
    */
-  it.fails("TC-11b · înlocuitorul nu poate fi mai scump; fără înlocuitor potrivit se elimină doar linia [DEF-02]", () => {
+  it("TC-11b · înlocuitorul nu poate fi mai scump; fără înlocuitor potrivit se elimină doar linia [retest DEF-02]", () => {
     const { p } = platformaDeTest();
     p.cart.seteazaInlocuire("A", true);
     p.cart.adauga("A", "100513", 1); // iaurt 380 g, 8,99 lei — singurul similar e cel de 9,79 lei

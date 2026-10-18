@@ -220,7 +220,14 @@ export class OrderService {
     if (existenta) {
       // reîncercare după refuz: actualizăm comanda deschisă, nu creăm alta
       const c = this.comenzi.get(existenta)!;
-      Object.assign(c, { linii, deviz, costTotal: deviz.total, tipPrimire: cerere.tipPrimire, idMagazin: cos.idMagazin });
+      Object.assign(c, {
+        linii,
+        deviz,
+        costTotal: deviz.total,
+        tipPrimire: cerere.tipPrimire,
+        idMagazin: cos.idMagazin,
+        puncteFolosite: cos.puncteFolosite,
+      });
       return c;
     }
     const now = this.clock.now();
@@ -235,6 +242,7 @@ export class OrderService {
       deviz,
       costTotal: deviz.total,
       plati: [],
+      puncteFolosite: cos.puncteFolosite,
       dataCrearii: now,
       istoric: [{ status: "InPlata", la: now }],
     };
