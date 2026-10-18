@@ -24,6 +24,8 @@ export interface SaleEvent {
   cantitate: number;
   /** Momentul la care starea din sistemul central era cea descrisă de eveniment. */
   at: number;
+  /** Pentru ieșirile din stoc ale comenzilor online: rezervarea consumată. */
+  ref?: string;
 }
 
 export class CentralUnavailableError extends Error {
@@ -58,6 +60,12 @@ export class CentralSystemSimulator {
 
   addProdus(p: Produs): void {
     this.produse.set(p.cod, p);
+  }
+
+  /** Schimbare de preț în catalog (ex. începutul unei promoții). */
+  schimbaPret(codProdus: string, pret: number): void {
+    const p = this.produse.get(codProdus);
+    if (p) p.pret = pret;
   }
 
   setStoc(idMagazin: string, codProdus: string, cantitate: number): void {
@@ -133,10 +141,18 @@ export class CentralSystemSimulator {
     return this.seq;
   }
 
-  /** Scade stocul pentru produsele culese pentru o comandă online (nu emite eveniment de casă). */
-  scadeStocComanda(idMagazin: string, codProdus: string, cantitate: number): void {
+  /**
+   * Ieșirea din stoc a produselor culese pentru o comandă online. Emite același tip de eveniment
+   * ca o vânzare la casă, cu referința rezervării, ca platforma să elibereze alocarea abia când
+   * scăderea a ajuns în stocul online (fără fereastră în care produsul pare din nou disponibil).
+   */
+  scadeStocComanda(idMagazin: string, codProdus: string, cantitate: number, ref?: string): SaleEvent {
     const k = key(idMagazin, codProdus);
     this.stoc.set(k, Math.max(0, (this.stoc.get(k) ?? 0) - cantitate));
+    const e: SaleEvent = { seq: ++this.seq, tip: "vanzare", idMagazin, codProdus, cantitate, at: this.clock.now(), ref };
+    if (this.online) this.dispatch(e);
+    else this.buffered.push(e);
+    return e;
   }
 
   private dispatch(e: SaleEvent): void {

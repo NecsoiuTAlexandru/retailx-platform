@@ -6,7 +6,7 @@ import { lei } from "../src/core/money.js";
 import { CARDURI_TEST } from "../src/payments/paymentProcessor.js";
 import { PlataRefuzataError, TotalModificatError } from "../src/services/orders/orderService.js";
 import { StocInsuficientError } from "../src/services/stock/stockService.js";
-import { platformaDeTest } from "./helpers.js";
+import { cererePlata, platformaDeTest } from "./helpers.js";
 
 /** Produse de test cu prețuri rotunde, ca sumele din BRD să iasă exact. */
 function platformaCost() {
@@ -27,7 +27,7 @@ describe("US-03 · costul total înainte de plată", () => {
     const d = p.orders.deviz("A", "livrare");
     expect(d).toMatchObject({ produse: lei(150), livrare: lei(15), garantieSGR: lei(2), ambalajeSGR: 4, total: lei(167) });
 
-    const c = p.orders.plaseaza("A", { tipPrimire: "livrare", tokenCard: CARDURI_TEST.OK, totalAfisat: d.total, cheieIdempotenta: "k1" });
+    const c = p.orders.plaseaza("A", cererePlata(p, "A", { tipPrimire: "livrare", totalAfisat: d.total }));
     expect(c.status).toBe("Confirmata");
     expect(p.procesator.debitari).toHaveLength(1);
     expect(p.procesator.debitari[0].suma).toBe(lei(167)); // suma afișată = suma debitată
@@ -50,11 +50,9 @@ describe("US-03 · costul total înainte de plată", () => {
   it("dacă totalul s-a schimbat față de cel afișat, nu se debitează nimic (BR-04)", () => {
     const { p } = platformaCost();
     p.cart.adauga("A", "T-140");
-    const vazut = p.orders.deviz("A", "ridicare").total;
+    const cerere = cererePlata(p, "A");
     p.cart.adauga("A", "T-SGR"); // coșul s-a schimbat în alt tab
-    expect(() =>
-      p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.OK, totalAfisat: vazut, cheieIdempotenta: "k" }),
-    ).toThrow(TotalModificatError);
+    expect(() => p.orders.plaseaza("A", cerere)).toThrow(TotalModificatError);
     expect(p.procesator.debitari).toHaveLength(0);
   });
 });
@@ -63,21 +61,20 @@ describe("US-04 · plata cu reîncercare, fără pierderea coșului și fără d
   it("TC-06 · card cu fonduri insuficiente: comanda nu se confirmă, coșul rămâne, reîncercarea reușește", () => {
     const { p } = platformaCost();
     p.cart.adauga("A", "T-140");
-    const total = p.orders.deviz("A", "ridicare").total;
 
     let refuz: PlataRefuzataError | undefined;
     try {
-      p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.FONDURI_INSUFICIENTE, totalAfisat: total, cheieIdempotenta: "k1" });
+      p.orders.plaseaza("A", cererePlata(p, "A", { tokenCard: CARDURI_TEST.FONDURI_INSUFICIENTE }));
     } catch (e) {
       refuz = e as PlataRefuzataError;
     }
     expect(refuz).toBeInstanceOf(PlataRefuzataError);
     expect(refuz!.comanda.status).toBe("InPlata");
-    expect(p.cart.get("A").linii).toEqual([{ codProdus: "T-140", cantitate: 1 }]); // coș intact
+    expect(p.cart.get("A").linii).toMatchObject([{ codProdus: "T-140", cantitate: 1 }]); // coș intact
     expect(p.cart.get("A").rezervareId).toBeUndefined(); // rezervarea s-a eliberat
     expect(p.procesator.debitari).toHaveLength(0);
 
-    const c = p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.OK, totalAfisat: total, cheieIdempotenta: "k2" });
+    const c = p.orders.plaseaza("A", cererePlata(p, "A"));
     expect(c.status).toBe("Confirmata");
     expect(c.nrComanda).toBe(refuz!.comanda.nrComanda); // aceeași comandă, a doua încercare
     expect(c.plati.map((x) => x.status)).toEqual(["refuzata", "autorizata"]);
@@ -87,10 +84,9 @@ describe("US-04 · plata cu reîncercare, fără pierderea coșului și fără d
   it("TC-07 · conexiune întreruptă după 3-D Secure → o singură comandă și o singură debitare", () => {
     const { p } = platformaCost();
     p.cart.adauga("A", "T-140");
-    const total = p.orders.deviz("A", "ridicare").total;
     p.procesator.intreruperiProgramate = 1; // procesatorul debitează, răspunsul se pierde
 
-    const cerere = { tipPrimire: "ridicare" as const, tokenCard: CARDURI_TEST.OK, totalAfisat: total, cheieIdempotenta: "k1" };
+    const cerere = cererePlata(p, "A");
     const c = p.orders.plaseaza("A", cerere);
     expect(c.status).toBe("Confirmata");
 
@@ -99,26 +95,20 @@ describe("US-04 · plata cu reîncercare, fără pierderea coșului și fără d
     expect(c2.nrComanda).toBe(c.nrComanda);
     expect(p.orders.toate()).toHaveLength(1);
     expect(p.procesator.debitari).toHaveLength(1);
-    expect(p.procesator.totalDebitat()).toBe(total);
+    expect(p.procesator.totalDebitat()).toBe(cerere.totalAfisat);
   });
 
   it("3-D Secure eșuat se tratează ca plată refuzată, cu coșul păstrat", () => {
     const { p } = platformaCost();
     p.cart.adauga("A", "T-140");
-    const total = p.orders.deviz("A", "ridicare").total;
-    expect(() =>
-      p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.ESEC_3DS, totalAfisat: total, cheieIdempotenta: "k" }),
-    ).toThrow(/3-D Secure/);
+    expect(() => p.orders.plaseaza("A", cererePlata(p, "A", { tokenCard: CARDURI_TEST.ESEC_3DS }))).toThrow(/3-D Secure/);
     expect(p.cart.get("A").linii).toHaveLength(1);
   });
 
   it("stoc insuficient: clientul e anunțat înainte de plată și nu se debitează nimic", () => {
     const { p } = platformaCost();
     p.cart.adauga("A", "T-140", 50);
-    const total = p.orders.deviz("A", "ridicare").total;
-    expect(() =>
-      p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.OK, totalAfisat: total, cheieIdempotenta: "k" }),
-    ).toThrow(StocInsuficientError);
+    expect(() => p.orders.plaseaza("A", cererePlata(p, "A"))).toThrow(StocInsuficientError);
     expect(p.procesator.debitari).toHaveLength(0);
     expect(p.orders.toate()).toHaveLength(0);
   });
@@ -126,8 +116,7 @@ describe("US-04 · plata cu reîncercare, fără pierderea coșului și fără d
   it("după confirmare, stocul rămâne alocat comenzii și nu expiră după 15 minute", () => {
     const { clock, p } = platformaCost();
     p.cart.adauga("A", "T-140", 18); // 20 fizic − 2 siguranță = 18
-    const total = p.orders.deviz("A", "ridicare").total;
-    const c = p.orders.plaseaza("A", { tipPrimire: "ridicare", tokenCard: CARDURI_TEST.OK, totalAfisat: total, cheieIdempotenta: "k" });
+    const c = p.orders.plaseaza("A", cererePlata(p, "A"));
     clock.advance(20 * 60_000);
     p.central.heartbeat();
     clock.advance(1_000);

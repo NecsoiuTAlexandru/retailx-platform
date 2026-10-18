@@ -40,6 +40,11 @@
   <b>Retail<span>X</span></b>
   <label class="mic">Produs <select id="produs"></select></label>
   <label class="mic">Magazinul tău <select id="magazin"></select></label>
+  <span style="margin-left:auto" class="rand">
+    <span class="mic" id="cont">Neautentificat</span>
+    <button class="btn sec" id="login">Intră în cont ca Ana</button>
+    <a class="mic" href="/aplicatie.html" target="_blank">Deschide aplicația mobilă</a>
+  </span>
 </header>
 
 <main>
@@ -73,6 +78,13 @@
         <label><input type="radio" name="primire" value="ridicare" checked> Ridicare din magazin · gratuit</label>
         <label><input type="radio" name="primire" value="livrare"> Livrare la domiciliu</label>
       </div>
+      <fieldset style="border:0;padding:0;margin:0 0 12px">
+        <legend class="mic">Alege intervalul</legend>
+        <div id="intervale" class="rand" role="radiogroup"></div>
+      </fieldset>
+      <label id="camp-adresa" class="mic" style="display:none;margin-bottom:12px">Adresa de livrare
+        <input id="adresa" autocomplete="street-address" style="width:100%;padding:8px;border:1px solid var(--linie);border-radius:8px;font:inherit" value="Str. Exemplu 10, Ploiești">
+      </label>
       <table id="deviz"></table>
       <label class="mic" style="display:block;margin:12px 0">Card de test
         <select id="card">
@@ -92,7 +104,7 @@
 </main>
 
 <script>
-const COS = "web-" + Math.random().toString(36).slice(2, 8);
+let COS = "web-" + Math.random().toString(36).slice(2, 8);
 const $ = (id) => document.getElementById(id);
 const leiFmt = (b) => (b / 100).toLocaleString("ro-RO", { minimumFractionDigits: 2 }) + " lei";
 const api = async (url, opt = {}) => {
@@ -120,6 +132,14 @@ async function init() {
   $("adauga").onclick = async () => { await api(`/api/cos/${COS}/linii`, { method: "POST", body: { codProdus: $("produs").value } }); refresh(); };
   $("goleste").onclick = async () => { await api(`/api/cos/${COS}`, { method: "DELETE" }); rezervareExpira = null; mesaj(""); refresh(); };
   $("plateste").onclick = initiazaPlata;
+  // S3 · US-05: după autentificare, coșul e cel al clientului, același și în aplicație
+  $("login").onclick = async () => {
+    const c = await api("/api/clienti/ana/autentificare", { method: "POST", body: { idCosAnonim: COS } });
+    COS = c.id;
+    $("cont").textContent = "Ana P. · coșul e sincronizat cu aplicația";
+    $("login").hidden = true;
+    refresh();
+  };
   $("vinde").onclick = async () => { await api("/api/demo/vinde-la-casa", { method: "POST", body: { idMagazin: $("magazin").value, codProdus: $("produs").value } }); setTimeout(refresh, 1200); };
   $("central").onclick = async () => {
     centralOnline = !centralOnline;
@@ -167,7 +187,22 @@ let cheieIdempotenta = crypto.randomUUID();
 const tipPrimire = () => document.querySelector('input[name="primire"]:checked').value;
 document.querySelectorAll('input[name="primire"]').forEach((r) => (r.onchange = () => afiseazaCos()));
 
+// ---------- S3: intervale (US-06) ----------
+let intervalAles = null;
+async function afiseazaIntervale() {
+  const tip = tipPrimire();
+  $("camp-adresa").style.display = tip === "livrare" ? "block" : "none";
+  const lista = await api(`/api/magazine/${$("magazin").value}/intervale?tip=${tip}`);
+  if (!lista.find((i) => i.id === intervalAles && !i.plin)) intervalAles = lista.find((i) => !i.plin)?.id ?? null;
+  $("intervale").innerHTML = lista.length
+    ? lista.map((i) => `<button type="button" role="radio" aria-checked="${i.id === intervalAles}" class="btn ${i.id === intervalAles ? "" : "sec"}"
+        data-id="${i.id}" ${i.plin ? "disabled" : ""} style="padding:6px 10px;font-size:13px">${i.eticheta}${i.plin ? " · plin" : ""}</button>`).join("")
+    : '<span class="mic">Magazinul ales nu oferă acest mod de primire.</span>';
+  $("intervale").querySelectorAll("button").forEach((b) => (b.onclick = () => { intervalAles = b.dataset.id; afiseazaIntervale(); }));
+}
+
 async function afiseazaDeviz(areProduse) {
+  await afiseazaIntervale();
   if (!areProduse) { $("deviz").innerHTML = ""; devizCurent = null; $("plateste").textContent = "Plătește"; return; }
   const d = await api(`/api/cos/${COS}/deviz`, { method: "POST", body: { tipPrimire: tipPrimire() } });
   devizCurent = d;
@@ -186,11 +221,12 @@ async function initiazaPlata() {
   try {
     const c = await api(`/api/cos/${COS}/plata`, {
       method: "POST",
-      body: { tipPrimire: tipPrimire(), tokenCard: $("card").value, totalAfisat: devizCurent.total, cheieIdempotenta },
+      body: { tipPrimire: tipPrimire(), idInterval: intervalAles, adresa: $("adresa").value,
+              tokenCard: $("card").value, totalAfisat: devizCurent.total, cheieIdempotenta },
     });
     cheieIdempotenta = crypto.randomUUID();
     rezervareExpira = null;
-    mesaj(`Comanda ${c.nrComanda} a fost confirmată. Ai plătit ${leiFmt(c.costTotal)}.`, "ok");
+    mesaj(`Comanda ${c.nrComanda} a fost confirmată (${c.primire.interval}). Ai plătit ${leiFmt(c.costTotal)}.`, "ok");
   } catch (e) {
     cheieIdempotenta = crypto.randomUUID();
     if (e.data?.lipsa) {

@@ -7,10 +7,13 @@
  *  12–16 plată autorizată → „Confirmată”, notificare
  *  17–20 plată refuzată → rezervarea se eliberează, coșul se păstrează, reîncercare
  *  21–24 stoc insuficient → clientul e anunțat ÎNAINTE de plată
+ *
+ * S3: intervalul de livrare / ridicare se verifică înainte de plată și se ocupă la confirmare (US-06).
  */
 import type { Clock } from "../../core/clock.js";
 import type { Bani } from "../../core/money.js";
-import type { Comanda, Deviz, TipPrimire } from "../../domain/model.js";
+import type { DomainBus } from "../../domain/events.js";
+import type { Comanda, Deviz, StatusComanda, TipPrimire } from "../../domain/model.js";
 import { schimbaStatus } from "../../domain/orderState.js";
 import {
   ConexiuneIntreruptaError,
@@ -18,8 +21,9 @@ import {
   type RezultatAutorizare,
 } from "../../payments/paymentProcessor.js";
 import type { CartService } from "../cart/cartService.js";
-import type { PricingService } from "../pricing/pricingService.js";
+import type { Reducere, PricingService } from "../pricing/pricingService.js";
 import type { StockService } from "../stock/stockService.js";
+import type { SlotService } from "../fulfillment/slotService.js";
 
 export class CosGolError extends Error {
   constructor() {
@@ -40,8 +44,18 @@ export class PlataRefuzataError extends Error {
   }
 }
 
+export class DateLivrareLipsaError extends Error {
+  constructor() {
+    super("Pentru livrarea la domiciliu completează adresa");
+  }
+}
+
 export interface CererePlata {
   tipPrimire: TipPrimire;
+  /** Intervalul ales (US-06). */
+  idInterval: string;
+  /** Obligatorie pentru livrare la domiciliu. */
+  adresa?: string;
   tokenCard: string;
   /** Totalul pe care l-a văzut clientul pe butonul „Plătește …”. */
   totalAfisat: Bani;
@@ -58,6 +72,8 @@ export class OrderService {
   /** coș → comanda în plată (o singură comandă deschisă pe coș) */
   private inPlata = new Map<string, string>();
   private next = 48213;
+  /** Furnizorul de reduceri (cardul de fidelitate se leagă în S5). */
+  reduceriPentru: (idCos: string) => Reducere[] = () => [];
 
   constructor(
     private readonly clock: Clock,
@@ -65,17 +81,14 @@ export class OrderService {
     private readonly stock: StockService,
     private readonly pricing: PricingService,
     private readonly procesator: PaymentProcessorSimulator,
+    private readonly slots: SlotService,
+    private readonly bus: DomainBus,
   ) {}
 
   /** Pașii 1–4: costul total defalcat, afișat înainte de plată. */
   deviz(idCos: string, tipPrimire: TipPrimire): Deviz {
     const c = this.cart.get(idCos);
-    return this.pricing.deviz(c.linii, tipPrimire, this.reduceri(idCos));
-  }
-
-  /** Punct de extensie pentru reduceri (cardul de fidelitate se leagă în S5). */
-  protected reduceri(_idCos: string) {
-    return [];
+    return this.pricing.deviz(c.linii, tipPrimire, this.reduceriPentru(idCos));
   }
 
   get(nrComanda: string): Comanda | undefined {
@@ -84,6 +97,10 @@ export class OrderService {
 
   toate(): Comanda[] {
     return [...this.comenzi.values()];
+  }
+
+  aleClientului(idClient: string): Comanda[] {
+    return this.toate().filter((c) => c.idClient === idClient);
   }
 
   /** Pașii 5–24: plasarea comenzii și plata. */
@@ -97,6 +114,10 @@ export class OrderService {
 
     const cos = this.cart.get(idCos);
     if (!cos.linii.length) throw new CosGolError();
+    if (cerere.tipPrimire === "livrare" && !cerere.adresa?.trim()) throw new DateLivrareLipsaError();
+
+    // US-06: intervalul plin nu poate fi ales
+    const interval = this.slots.verifica(cerere.idInterval, cos.idMagazin, cerere.tipPrimire);
 
     const deviz = this.deviz(idCos, cerere.tipPrimire);
     if (deviz.total !== cerere.totalAfisat) throw new TotalModificatError(deviz);
@@ -134,16 +155,46 @@ export class OrderService {
     // Pașii 12–16: confirmare
     this.stock.confirma(cos.rezervareId!, comanda.nrComanda);
     comanda.rezervareId = cos.rezervareId;
+    comanda.primire =
+      cerere.tipPrimire === "ridicare"
+        ? { tip: "ridicare", idInterval: interval.id, interval: interval.eticheta, start: interval.start, sfarsit: interval.sfarsit }
+        : { tip: "livrare", idInterval: interval.id, interval: interval.eticheta, start: interval.start, sfarsit: interval.sfarsit, adresa: cerere.adresa!.trim() };
+    this.slots.ocupa(interval.id, comanda.nrComanda);
     comanda.dataConfirmarii = this.clock.now();
-    schimbaStatus(comanda, "Confirmata", this.clock.now());
     this.inPlata.delete(idCos);
     this.cart.dupaComanda(idCos);
-    this.dupaConfirmare(comanda);
+    this.status(comanda, "Confirmata");
     return comanda;
   }
 
-  /** Punct de extensie: notificarea „comandă confirmată” (S4) și evenimentele KPI (S7). */
-  protected dupaConfirmare(_c: Comanda): void {}
+  /** Schimbă statusul și anunță abonații (notificări, fidelitate, KPI). */
+  status(c: Comanda, nou: StatusComanda, motiv?: string): void {
+    schimbaStatus(c, nou, this.clock.now(), motiv, this.bus);
+  }
+
+  /** Rambursare pe plata autorizată a comenzii (totală sau parțială). */
+  ramburseaza(c: Comanda, suma: Bani, motiv = "rambursare"): void {
+    if (suma <= 0) return;
+    const plata = c.plati.find((p) => p.status === "autorizata");
+    if (!plata?.idTranzactie) throw new Error(`Comanda ${c.nrComanda} nu are o plată autorizată`);
+    this.procesator.ramburseaza(plata.idTranzactie, suma);
+    (c.rambursari ??= []).push({ suma, motiv, la: this.clock.now() });
+  }
+
+  /** Anulare (clientul anulează înainte de pregătire / comanda neridicată): rambursare integrală. */
+  anuleaza(nrComanda: string, motiv: string): Comanda {
+    const c = this.comenzi.get(nrComanda);
+    if (!c) throw new Error(`Comanda nu există: ${nrComanda}`);
+    this.status(c, "Anulata", motiv);
+    if (c.rezervareId) this.stock.elibereaza(c.rezervareId);
+    this.slots.elibereaza(nrComanda);
+    this.ramburseaza(c, c.costTotal - this.rambursatDeja(c), motiv);
+    return c;
+  }
+
+  rambursatDeja(c: Comanda): Bani {
+    return c.rambursari?.reduce((s, r) => s + r.suma, 0) ?? 0;
+  }
 
   /** O cădere de conexiune după 3-D Secure se reîncearcă cu ACEEAȘI cheie → o singură debitare. */
   private autorizeazaCuReincercare(c: Parameters<PaymentProcessorSimulator["autorizeaza"]>[0]): RezultatAutorizare {
@@ -177,6 +228,7 @@ export class OrderService {
       nrComanda: `RX-${this.next++}`,
       status: "InPlata",
       idCos,
+      idClient: cos.idClient,
       idMagazin: cos.idMagazin,
       tipPrimire: cerere.tipPrimire,
       linii,

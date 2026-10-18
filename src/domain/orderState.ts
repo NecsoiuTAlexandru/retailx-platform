@@ -2,6 +2,7 @@
  * Ciclul de viață al comenzii — diagrama de stări din BRD, cap. 8.5.
  * Orice schimbare de status trece pe aici; o tranziție care nu e în diagramă e o eroare.
  */
+import type { DomainBus } from "./events.js";
 import type { Comanda, StatusComanda } from "./model.js";
 
 export const TRANZITII: Record<StatusComanda, StatusComanda[]> = {
@@ -28,8 +29,10 @@ export class TranzitieInvalidaError extends Error {
   }
 }
 
-export function schimbaStatus(c: Comanda, nou: StatusComanda, la: number, motiv?: string): void {
+export function schimbaStatus(c: Comanda, nou: StatusComanda, la: number, motiv?: string, bus?: DomainBus): void {
   if (!TRANZITII[c.status].includes(nou)) throw new TranzitieInvalidaError(c.status, nou);
+  const din = c.status;
   c.status = nou;
   c.istoric.push({ status: nou, la, motiv });
+  bus?.emit("comanda.status", { comanda: c, din, in: nou, la, motiv });
 }

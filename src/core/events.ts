@@ -1,8 +1,9 @@
 /**
- * Magistrală de evenimente în proces. În producție ar fi un broker (ex. Kafka);
+ * Magistrală de evenimente de domeniu, în proces. În producție ar fi un broker (ex. Kafka);
  * aici păstrează aceeași formă: publish / subscribe pe tip de eveniment.
+ * Handler-ele rulează sincron, în ordinea abonării.
  */
-export type Handler<T> = (payload: T) => void | Promise<void>;
+export type Handler<T> = (payload: T) => void;
 
 export class EventBus<Events extends Record<string, unknown>> {
   private handlers = new Map<keyof Events, Handler<any>[]>();
@@ -17,7 +18,7 @@ export class EventBus<Events extends Record<string, unknown>> {
     };
   }
 
-  async emit<K extends keyof Events>(type: K, payload: Events[K]): Promise<void> {
-    for (const h of this.handlers.get(type) ?? []) await h(payload);
+  emit<K extends keyof Events>(type: K, payload: Events[K]): void {
+    for (const h of this.handlers.get(type) ?? []) h(payload);
   }
 }

@@ -56,6 +56,8 @@ export class StockService {
   private confirmare = new Map<string, number>();
   private watermark = 0;
   private rezervari = new Map<string, RezervareStoc>();
+  /** rezervare consumată → câte ieșiri din stoc mai așteptăm să fie procesate */
+  private iesiriAsteptate = new Map<string, number>();
   private nextId = 1;
   readonly processor: SaleEventProcessor;
 
@@ -92,6 +94,13 @@ export class StockService {
       if (s) {
         s.cantitate = Math.max(0, s.cantitate - e.cantitate);
         s.ultimaActualizare = e.at;
+      }
+      if (e.ref && this.iesiriAsteptate.has(e.ref)) {
+        const ramase = this.iesiriAsteptate.get(e.ref)! - 1;
+        if (ramase <= 0) {
+          this.iesiriAsteptate.delete(e.ref);
+          this.rezervari.delete(e.ref);
+        } else this.iesiriAsteptate.set(e.ref, ramase);
       }
     }
     // Starea magazinului e la zi până la momentul evenimentului procesat.
@@ -177,6 +186,22 @@ export class StockService {
     if (!r) throw new Error(`Rezervare inexistentă sau expirată: ${id}`);
     r.expira = Number.POSITIVE_INFINITY;
     r.nrComanda = nrComanda;
+  }
+
+  /**
+   * Culegerea comenzii: produsele ies din stocul central. Alocarea se eliberează abia când
+   * ieșirile au ajuns în stocul online (evenimentele cu `ref` = rezervarea).
+   */
+  consuma(id: string, iesiri: LinieRezervare[]): void {
+    const r = this.rezervari.get(id);
+    if (!r) return;
+    const valide = iesiri.filter((i) => i.cantitate > 0);
+    if (!valide.length) {
+      this.rezervari.delete(id);
+      return;
+    }
+    this.iesiriAsteptate.set(id, valide.length);
+    for (const i of valide) this.central.scadeStocComanda(r.idMagazin, i.codProdus, i.cantitate, id);
   }
 
   /** Rezervarea mai e valabilă (nu a expirat)? */

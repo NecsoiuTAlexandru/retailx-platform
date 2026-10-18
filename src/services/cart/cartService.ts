@@ -1,25 +1,54 @@
 /**
- * Coșul de cumpărături. În S1 doar cât e nevoie pentru US-02:
- * coșul ține legătura cu rezervarea, iar golirea coșului anulează imediat rezervarea (TC-03c).
+ * Coșul de cumpărături.
+ *
+ *  - S1: legătura cu rezervarea; golirea coșului anulează imediat rezervarea (US-02, TC-03c).
+ *  - S3: coș comun între website și aplicație pentru clientul autentificat (US-05 / FR-05).
+ *    Coșul unui client autentificat e unul singur, indiferent de canal. La deschidere,
+ *    prețul și stocul se reverifică, iar clientul vede ce s-a schimbat de când a adăugat produsul.
  */
-import type { StockService } from "../stock/stockService.js";
+import type { Bani } from "../../core/money.js";
+import type { Produs } from "../../domain/model.js";
+import type { EtichetaDisponibilitate, StockService } from "../stock/stockService.js";
+
+export type Canal = "website" | "aplicatie";
 
 export interface LinieCos {
   codProdus: string;
   cantitate: number;
+  /** Prețul la momentul adăugării, ca să putem anunța o schimbare de preț. */
+  pretLaAdaugare?: Bani;
 }
 
 export interface Cos {
   id: string;
+  idClient?: string;
   idMagazin: string;
   linii: LinieCos[];
   rezervareId?: string;
+  actualizatDin?: Canal;
 }
+
+export interface VerificareLinie {
+  codProdus: string;
+  cantitate: number;
+  pretLaAdaugare?: Bani;
+  pretCurent: Bani;
+  pretModificat: boolean;
+  eticheta: EtichetaDisponibilitate;
+  disponibil: number | null;
+  /** Cantitatea din coș nu mai poate fi onorată din magazinul ales. */
+  stocInsuficient: boolean;
+}
+
+export const idCosClient = (idClient: string) => `client:${idClient}`;
 
 export class CartService {
   private cosuri = new Map<string, Cos>();
 
-  constructor(private readonly stock: StockService) {}
+  constructor(
+    private readonly stock: StockService,
+    private readonly catalog: Map<string, Produs>,
+  ) {}
 
   get(id: string, idMagazin = "PH-NORD"): Cos {
     let c = this.cosuri.get(id);
@@ -36,11 +65,15 @@ export class CartService {
     return c;
   }
 
-  adauga(id: string, codProdus: string, cantitate = 1): Cos {
+  adauga(id: string, codProdus: string, cantitate = 1, canal?: Canal): Cos {
     const c = this.get(id);
+    const pret = this.catalog.get(codProdus)?.pret;
     const l = c.linii.find((x) => x.codProdus === codProdus);
-    if (l) l.cantitate += cantitate;
-    else c.linii.push({ codProdus, cantitate });
+    if (l) {
+      l.cantitate += cantitate;
+      l.pretLaAdaugare = pret;
+    } else c.linii.push({ codProdus, cantitate, pretLaAdaugare: pret });
+    if (canal) c.actualizatDin = canal;
     return c;
   }
 
@@ -59,11 +92,65 @@ export class CartService {
     return c;
   }
 
+  // ---------- S3 · US-05: coș comun pe canale ----------
+
+  /**
+   * Autentificarea: coșul anonim (început înainte de login) se mută în coșul clientului.
+   * Întoarce coșul clientului, același pe website și în aplicație.
+   */
+  autentifica(idCosAnonim: string | undefined, idClient: string): Cos {
+    const cosClient = this.get(idCosClient(idClient));
+    cosClient.idClient = idClient;
+    if (idCosAnonim && idCosAnonim !== cosClient.id && this.cosuri.has(idCosAnonim)) {
+      const anonim = this.cosuri.get(idCosAnonim)!;
+      for (const l of anonim.linii) {
+        const ex = cosClient.linii.find((x) => x.codProdus === l.codProdus);
+        if (ex) ex.cantitate = Math.max(ex.cantitate, l.cantitate);
+        else cosClient.linii.push({ ...l });
+      }
+      if (anonim.linii.length) cosClient.idMagazin = anonim.idMagazin; // magazinul ales ultima dată
+      this.elibereazaRezervarea(anonim);
+      this.cosuri.delete(idCosAnonim);
+    }
+    return cosClient;
+  }
+
+  /** Deschiderea coșului pe orice canal: același coș, cu prețul și stocul reverificate. */
+  deschide(idClient: string, canal: Canal): { cos: Cos; verificare: VerificareLinie[] } {
+    const cos = this.get(idCosClient(idClient));
+    cos.idClient = idClient;
+    cos.actualizatDin = canal;
+    return { cos, verificare: this.verifica(cos.id) };
+  }
+
+  verifica(id: string): VerificareLinie[] {
+    const c = this.get(id);
+    return c.linii.map((l) => {
+      const pretCurent = this.catalog.get(l.codProdus)?.pret ?? 0;
+      const d = this.stock.disponibilitate(c.idMagazin, l.codProdus);
+      return {
+        codProdus: l.codProdus,
+        cantitate: l.cantitate,
+        pretLaAdaugare: l.pretLaAdaugare,
+        pretCurent,
+        pretModificat: l.pretLaAdaugare !== undefined && l.pretLaAdaugare !== pretCurent,
+        eticheta: d.eticheta,
+        disponibil: d.disponibil,
+        stocInsuficient: d.eticheta !== "in_stoc" || (d.disponibil ?? 0) < l.cantitate,
+      };
+    });
+  }
+
+  // ---------- Rezervare (S1) ----------
+
   /** Inițierea plății: rezervă tot coșul pentru 15 minute. */
   rezerva(id: string) {
     const c = this.get(id);
     if (c.rezervareId) this.stock.elibereaza(c.rezervareId);
-    const r = this.stock.rezerva(c.idMagazin, c.linii);
+    const r = this.stock.rezerva(
+      c.idMagazin,
+      c.linii.map((l) => ({ codProdus: l.codProdus, cantitate: l.cantitate })),
+    );
     c.rezervareId = r.id;
     return r;
   }

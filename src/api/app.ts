@@ -6,7 +6,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Platform } from "../platform.js";
 import { StocInsuficientError } from "../services/stock/stockService.js";
-import { CosGolError, PlataRefuzataError, TotalModificatError } from "../services/orders/orderService.js";
+import {
+  CosGolError,
+  DateLivrareLipsaError,
+  PlataRefuzataError,
+  TotalModificatError,
+} from "../services/orders/orderService.js";
+import { IntervalIndisponibilError } from "../services/fulfillment/slotService.js";
+import { CodRidicareGresitError } from "../services/fulfillment/fulfillmentService.js";
+import { TranzitieInvalidaError } from "../domain/orderState.js";
 import { ProdusNecunoscutError } from "../services/pricing/pricingService.js";
 
 export function createApp(p: Platform) {
@@ -40,11 +48,28 @@ export function createApp(p: Platform) {
   app.delete("/api/cos/:id", (req, res) => res.json(p.cart.goleste(req.params.id)));
   app.post("/api/cos/:id/rezervare", (req, res) => res.status(201).json(p.cart.rezerva(req.params.id)));
 
+  // ---------- US-05: coș comun pe canale (clientul autentificat) ----------
+  app.post("/api/clienti/:idClient/autentificare", (req, res) =>
+    res.json(p.cart.autentifica(req.body.idCosAnonim, req.params.idClient)),
+  );
+  app.get("/api/clienti/:idClient/cos", (req, res) => {
+    const canal = req.query.canal === "aplicatie" ? "aplicatie" : "website";
+    res.json(p.cart.deschide(req.params.idClient, canal));
+  });
+
+  // ---------- US-06: intervale de livrare / ridicare ----------
+  app.get("/api/magazine/:id/intervale", (req, res) => {
+    const tip = req.query.tip === "livrare" ? "livrare" : "ridicare";
+    res.json(p.slots.intervale(req.params.id, tip));
+  });
+
   // ---------- Finalizarea comenzii (US-03, US-04) ----------
   app.post("/api/cos/:id/deviz", (req, res) => res.json(p.orders.deviz(req.params.id, req.body.tipPrimire ?? "ridicare")));
   app.post("/api/cos/:id/plata", (req, res) => {
     const c = p.orders.plaseaza(req.params.id, {
       tipPrimire: req.body.tipPrimire,
+      idInterval: String(req.body.idInterval ?? ""),
+      adresa: req.body.adresa,
       tokenCard: req.body.tokenCard,
       totalAfisat: Number(req.body.totalAfisat),
       cheieIdempotenta: String(req.body.cheieIdempotenta),
@@ -56,6 +81,12 @@ export function createApp(p: Platform) {
     if (!c) return res.status(404).json({ eroare: "Comanda nu există" });
     res.json(c);
   });
+
+  // ---------- Magazin: pregătire și predare ----------
+  app.post("/api/magazin/comenzi/:nr/pregatire", (req, res) => res.json(p.fulfillment.incepePregatirea(req.params.nr)));
+  app.post("/api/magazin/comenzi/:nr/gata", (req, res) => res.json(p.fulfillment.finalizeazaPregatirea(req.params.nr)));
+  app.post("/api/magazin/comenzi/:nr/ridicare", (req, res) => res.json(p.fulfillment.ridica(req.params.nr, String(req.body.cod))));
+  app.post("/api/curier/comenzi/:nr/livrata", (req, res) => res.json(p.fulfillment.confirmaLivrarea(req.params.nr)));
 
   // ---------- Simulări pentru demo (mediul de test) ----------
   app.post("/api/demo/vinde-la-casa", (req, res) => {
@@ -76,7 +107,10 @@ export function createApp(p: Platform) {
     if (err instanceof PlataRefuzataError) {
       return res.status(402).json({ eroare: err.message, nrComanda: err.comanda.nrComanda });
     }
-    if (err instanceof CosGolError) return res.status(400).json({ eroare: err.message });
+    if (err instanceof CosGolError || err instanceof DateLivrareLipsaError) return res.status(400).json({ eroare: err.message });
+    if (err instanceof IntervalIndisponibilError) return res.status(409).json({ eroare: err.message });
+    if (err instanceof CodRidicareGresitError) return res.status(403).json({ eroare: err.message });
+    if (err instanceof TranzitieInvalidaError) return res.status(409).json({ eroare: err.message });
     if (err instanceof ProdusNecunoscutError) return res.status(404).json({ eroare: err.message });
     console.error(err);
     res.status(500).json({ eroare: "Eroare internă" });

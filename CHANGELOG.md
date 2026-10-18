@@ -30,3 +30,16 @@ Sprint Goal: „Costul total e clar și plata nu pierde coșul.” (US-03 5 SP, 
 - Mașina de stări a comenzii (diagrama de stări, cap. 8.5).
 - Website: rezumatul costului și plata cu carduri de test.
 - Teste: TC-04, TC-05, TC-06, TC-07 + retest TC-01b. Decizia PO: US-01, US-03, US-04 acceptate.
+
+## S3 — tag `s3`
+Sprint Goal: „Clientul comandă pe orice canal și alege cum primește.” (US-05 5 SP, US-06 8 SP)
+
+- Coș comun website ↔ aplicație pentru clientul autentificat; coșul anonim se păstrează la autentificare.
+- La deschiderea coșului, prețul și stocul se reverifică; clientul vede ce s-a schimbat.
+- Intervale de 2 ore pentru livrare și ridicare, cu capacitate pe magazin; intervalul plin nu poate fi ales.
+- Onorarea comenzii: pregătire → cod de ridicare (4 cifre) sau predare la curier (AWB, link de urmărire) → „Onorată”.
+- Neridicată în 48 h → „Anulată” cu rambursare integrală.
+- Ieșirea din stoc a produselor culese, fără fereastră în care produsul reapare online.
+- Magistrală de evenimente de domeniu (`comanda.status`), pentru notificări, fidelitate și KPI.
+- Website: autentificare, alegerea intervalului, adresa; aplicația mobilă (`/aplicatie.html`) cu coșul comun.
+- Teste: TC-08, TC-09. Test de uzabilitate cu 5 clienți: 4 din 5 fără ajutor; story de corecție pentru alegerea intervalului (butoane mari, „plin” afișat în text, nu doar culoare).

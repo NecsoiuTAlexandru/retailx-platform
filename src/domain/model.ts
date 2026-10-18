@@ -62,6 +62,30 @@ export interface Deviz {
   total: Bani;
 }
 
+/**
+ * Primire — clasa abstractă din diagrama de clase, specializată în
+ * RidicareMagazin (codRidicare) și LivrareDomiciliu (adresă, AWB curier).
+ */
+export interface PrimireBaza {
+  idInterval: string;
+  /** Ex. „vin. 12.03 · 17:00–19:00” */
+  interval: string;
+  start: number;
+  sfarsit: number;
+}
+export interface RidicareMagazin extends PrimireBaza {
+  tip: "ridicare";
+  codRidicare?: string;
+  gataLa?: number;
+}
+export interface LivrareDomiciliu extends PrimireBaza {
+  tip: "livrare";
+  adresa: string;
+  awbCurier?: string;
+  linkUrmarire?: string;
+}
+export type Primire = RidicareMagazin | LivrareDomiciliu;
+
 export interface Comanda {
   nrComanda: string;
   status: StatusComanda;
@@ -69,10 +93,12 @@ export interface Comanda {
   idClient?: string;
   idMagazin: string;
   tipPrimire: TipPrimire;
+  primire?: Primire;
   linii: LinieComanda[];
   deviz: Deviz;
   costTotal: Bani;
   plati: Plata[];
+  rambursari?: { suma: Bani; motiv: string; la: number }[];
   rezervareId?: string;
   dataCrearii: number;
   dataConfirmarii?: number;
