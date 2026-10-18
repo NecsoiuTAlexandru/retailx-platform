@@ -82,6 +82,20 @@ export function createApp(p: Platform) {
     res.json(c);
   });
 
+  // ---------- S4 · US-09: preferința de înlocuire și aplicația de culegere ----------
+  app.put("/api/cos/:id/inlocuire", (req, res) => res.json(p.cart.seteazaInlocuire(req.params.id, Boolean(req.body.accepta))));
+  app.get("/api/magazin/:id/de-cules", (req, res) => res.json(p.picking.deCules(req.params.id)));
+  app.post("/api/magazin/comenzi/:nr/culegere", (req, res) => res.json(p.picking.culege(req.params.nr, req.body.rezultate ?? [])));
+
+  // ---------- S4 · US-07: notificări și consimțăminte ----------
+  app.get("/api/clienti/:idClient/notificari", (req, res) => res.json(p.notificari.pentru(req.params.idClient)));
+  app.get("/api/clienti/:idClient/comenzi", (req, res) => res.json(p.orders.aleClientului(req.params.idClient)));
+  app.get("/api/clienti/:idClient/consimtaminte", (req, res) => res.json(p.consent.ale(req.params.idClient)));
+  app.put("/api/clienti/:idClient/consimtaminte/:tip", (req, res) => {
+    const tip = req.params.tip === "recomandari" ? "recomandari" : "marketing";
+    res.json(p.consent.seteaza(req.params.idClient, tip, Boolean(req.body.acordat)));
+  });
+
   // ---------- Magazin: pregătire și predare ----------
   app.post("/api/magazin/comenzi/:nr/pregatire", (req, res) => res.json(p.fulfillment.incepePregatirea(req.params.nr)));
   app.post("/api/magazin/comenzi/:nr/gata", (req, res) => res.json(p.fulfillment.finalizeazaPregatirea(req.params.nr)));

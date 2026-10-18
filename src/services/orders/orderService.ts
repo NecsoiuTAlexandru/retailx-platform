@@ -215,7 +215,7 @@ export class OrderService {
       denumire: l.denumire,
       cantitate: l.cantitate,
       pretUnitar: l.pretUnitar,
-      acceptaInlocuire: false,
+      acceptaInlocuire: cos.acceptaInlocuire ?? false,
     }));
     if (existenta) {
       // reîncercare după refuz: actualizăm comanda deschisă, nu creăm alta

@@ -9,6 +9,8 @@ export interface Produs {
   denumire: string;
   pret: Bani;
   areGarantieSGR: boolean;
+  /** Folosită pentru propunerea unui înlocuitor similar (US-09). */
+  categorie?: string;
 }
 
 export interface Magazin {
@@ -38,6 +40,18 @@ export interface LinieComanda {
   cantitate: number;
   pretUnitar: Bani;
   acceptaInlocuire: boolean;
+  /** Rezultatul culegerii (S4): produs înlocuit sau linie eliminată. */
+  inlocuire?: Inlocuire;
+  eliminata?: boolean;
+}
+
+/** Clasa Înlocuire din diagrama de clase: cel mult una pe linie. */
+export interface Inlocuire {
+  codProdus: string;
+  denumire: string;
+  pretUnitar: Bani;
+  motiv: string;
+  diferentaRambursata: Bani;
 }
 
 export type StatusPlata = "initiata" | "autorizata" | "refuzata" | "rambursata";

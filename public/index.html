@@ -85,6 +85,9 @@
       <label id="camp-adresa" class="mic" style="display:none;margin-bottom:12px">Adresa de livrare
         <input id="adresa" autocomplete="street-address" style="width:100%;padding:8px;border:1px solid var(--linie);border-radius:8px;font:inherit" value="Str. Exemplu 10, Ploiești">
       </label>
+      <label class="rand" style="margin-bottom:12px;font-size:14px">
+        <input type="checkbox" id="inlocuire"> Accept un produs înlocuitor similar, la preț egal sau mai mic
+      </label>
       <table id="deviz"></table>
       <label class="mic" style="display:block;margin:12px 0">Card de test
         <select id="card">
@@ -132,6 +135,8 @@ async function init() {
   $("adauga").onclick = async () => { await api(`/api/cos/${COS}/linii`, { method: "POST", body: { codProdus: $("produs").value } }); refresh(); };
   $("goleste").onclick = async () => { await api(`/api/cos/${COS}`, { method: "DELETE" }); rezervareExpira = null; mesaj(""); refresh(); };
   $("plateste").onclick = initiazaPlata;
+  // S4 · US-09: preferința de înlocuire, activată explicit de client
+  $("inlocuire").onchange = () => api(`/api/cos/${COS}/inlocuire`, { method: "PUT", body: { accepta: $("inlocuire").checked } });
   // S3 · US-05: după autentificare, coșul e cel al clientului, același și în aplicație
   $("login").onclick = async () => {
     const c = await api("/api/clienti/ana/autentificare", { method: "POST", body: { idCosAnonim: COS } });
@@ -178,6 +183,7 @@ async function afiseazaCos() {
     ? c.linii.map((l) => `<div class="linie-cos"><span>${l.cantitate} × ${den[l.codProdus]}</span></div>`).join("")
     : '<p class="mic">Coșul e gol.</p>';
   $("plateste").disabled = !c.linii.length;
+  $("inlocuire").checked = Boolean(c.acceptaInlocuire);
   await afiseazaDeviz(c.linii.length > 0);
 }
 

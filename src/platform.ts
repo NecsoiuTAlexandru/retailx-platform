@@ -15,6 +15,9 @@ import { PricingService } from "./services/pricing/pricingService.js";
 import { OrderService } from "./services/orders/orderService.js";
 import { CAPACITATE_IMPLICITA, SlotService } from "./services/fulfillment/slotService.js";
 import { FulfillmentService } from "./services/fulfillment/fulfillmentService.js";
+import { ConsentService } from "./services/consent/consentService.js";
+import { NotificationService } from "./services/notifications/notificationService.js";
+import { PickingService } from "./services/picking/pickingService.js";
 
 export interface PlatformOptions {
   clock: Clock;
@@ -40,9 +43,12 @@ export function createPlatform({ clock, seed = true, incarca = true, capacitateI
   const slots = new SlotService(clock, central.magazine, capacitateIntervale ?? CAPACITATE_IMPLICITA);
   const orders = new OrderService(clock, cart, stock, pricing, procesator, slots, bus);
   const fulfillment = new FulfillmentService(clock, orders, stock, curier);
+  const consent = new ConsentService(clock);
+  const notificari = new NotificationService(clock, bus, consent);
+  const picking = new PickingService(orders, fulfillment, central, notificari);
 
   if (incarca) stock.incarcaInitial();
-  return { clock, bus, central, procesator, curier, stock, cart, pricing, slots, orders, fulfillment };
+  return { clock, bus, central, procesator, curier, stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking };
 }
 
 export type Platform = ReturnType<typeof createPlatform>;

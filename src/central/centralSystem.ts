@@ -55,11 +55,11 @@ export class CentralSystemSimulator {
   constructor(private readonly clock: Clock, private readonly rateLimitMs = MINUTE) {}
 
   addMagazin(m: Magazin): void {
-    this.magazine.set(m.idMagazin, m);
+    this.magazine.set(m.idMagazin, { ...m });
   }
 
   addProdus(p: Produs): void {
-    this.produse.set(p.cod, p);
+    this.produse.set(p.cod, { ...p }); // copie: schimbările de preț nu ating datele de seed
   }
 
   /** Schimbare de preț în catalog (ex. începutul unei promoții). */

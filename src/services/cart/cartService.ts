@@ -26,6 +26,8 @@ export interface Cos {
   linii: LinieCos[];
   rezervareId?: string;
   actualizatDin?: Canal;
+  /** US-09: „Accept un produs înlocuitor similar, la preț egal sau mai mic” — activat explicit de client. */
+  acceptaInlocuire?: boolean;
 }
 
 export interface VerificareLinie {
@@ -89,6 +91,13 @@ export class CartService {
     const c = this.get(id);
     c.linii = [];
     this.elibereazaRezervarea(c);
+    return c;
+  }
+
+  /** S4 · US-09: preferința de înlocuire, aleasă din coș. Implicit: dezactivată. */
+  seteazaInlocuire(id: string, accepta: boolean): Cos {
+    const c = this.get(id);
+    c.acceptaInlocuire = accepta;
     return c;
   }
 

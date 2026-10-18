@@ -43,3 +43,14 @@ Sprint Goal: „Clientul comandă pe orice canal și alege cum primește.” (US
 - Magistrală de evenimente de domeniu (`comanda.status`), pentru notificări, fidelitate și KPI.
 - Website: autentificare, alegerea intervalului, adresa; aplicația mobilă (`/aplicatie.html`) cu coșul comun.
 - Teste: TC-08, TC-09. Test de uzabilitate cu 5 clienți: 4 din 5 fără ajutor; story de corecție pentru alegerea intervalului (butoane mari, „plin” afișat în text, nu doar culoare).
+
+## S4 — tag `s4`
+Sprint Goal: „Clientul e informat și comanda nu se anulează pentru un produs lipsă.” (US-07 3 SP, US-09 5 SP)
+
+- Serviciul Notificări: o notificare tranzacțională (push + e-mail) la fiecare schimbare de status, în ordine; fără oferte.
+- Consimțăminte separate pentru marketing și recomandări (NFR-03), cu jurnal de acord/retragere; marketingul pleacă doar cu acord.
+- Preferința de înlocuire din coș (activată explicit de client).
+- Aplicația de culegere (`/magazin.html`): produs lipsă → înlocuitor similar sau eliminarea doar a liniei, cu rambursare parțială (inclusiv SGR); anulare integrală doar dacă lipsesc toate produsele.
+- Aplicația mobilă: ecranul „Comenzi” cu pașii statusului, înlocuirile și codul de ridicare.
+- Teste: TC-10 și TC-11a trecute. **TC-11b eșuat → DEF-02** (înlocuitorul putea fi mai scump), marcat `it.fails`.
+- Decizia PO: respins parțial — US-07 acceptat, US-09 reluat în S5.

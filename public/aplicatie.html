@@ -29,6 +29,7 @@
   <div class="continut" id="ecran"></div>
   <nav id="nav">
     <button data-ecran="cos" aria-current="page">Coș</button>
+    <button data-ecran="comenzi">Comenzi</button>
   </nav>
 </div>
 
@@ -55,6 +56,29 @@ ECRANE.cos = { titlu: "Coșul tău", subtitlu: "Ana P. · același coș ca pe we
       ${v.stocInsuficient ? `<div class="alerta stoc">${v.eticheta === "neconfirmat" ? "Disponibilitate neconfirmată" : `Mai sunt ${v.disponibil ?? 0} buc. în magazinul ales`}</div>` : ""}
     </div><b>${leiFmt(v.pretCurent * v.cantitate)}</b></div>`).join("");
   return `<div class="card">${randuri}</div><p class="mic">Prețul și stocul au fost reverificate la deschidere.</p>`;
+}};
+
+// ---------- S4 · US-07, US-09: statusul comenzii, înlocuirile și codul de ridicare ----------
+const PASI = [["Confirmata", "Confirmată"], ["InPregatire", "În pregătire"], ["GataDeRidicare", "Gata de ridicare"], ["InLivrare", "În livrare"], ["Onorata", "Onorată"]];
+const ora = (ms) => new Date(ms).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+ECRANE.comenzi = { titlu: "Comenzile tale", subtitlu: "Statusul se actualizează automat", async randeaza() {
+  const comenzi = (await api(`/api/clienti/${CLIENT}/comenzi`)).filter((c) => c.status !== "InPlata").reverse();
+  if (!comenzi.length) return '<div class="card mic">Nu ai încă nicio comandă.</div>';
+  return comenzi.map((c) => {
+    const pasi = PASI.filter(([s]) => s !== (c.tipPrimire === "ridicare" ? "InLivrare" : "GataDeRidicare"));
+    const atins = Object.fromEntries(c.istoric.map((h) => [h.status, h.la]));
+    const inlocuiri = c.linii.filter((l) => l.inlocuire).map((l) =>
+      `<div class="alerta pret"><b>1 produs înlocuit</b>, cum ai ales: ${l.denumire} → ${l.inlocuire.denumire}.${l.inlocuire.diferentaRambursata ? ` Diferența de ${leiFmt(l.inlocuire.diferentaRambursata)} a fost rambursată.` : ""}</div>`).join("");
+    const eliminate = c.linii.filter((l) => l.eliminata).map((l) => `<div class="alerta stoc">${l.denumire} lipsea; suma a fost rambursată.</div>`).join("");
+    const cod = c.status === "GataDeRidicare" && c.primire?.codRidicare
+      ? `<div style="border:2px dashed var(--verde);border-radius:12px;text-align:center;padding:10px;margin-top:8px"><div class="mic">Arată acest cod la ridicare</div><div style="font-size:30px;font-weight:800;letter-spacing:.2em">${c.primire.codRidicare}</div></div>`
+      : "";
+    const urmarire = c.status === "InLivrare" && c.primire?.linkUrmarire ? `<a href="${c.primire.linkUrmarire}" target="_blank">Urmărește livrarea</a>` : "";
+    return `<div class="card"><b>Comanda #${c.nrComanda}</b><div class="mic">${c.tipPrimire === "ridicare" ? "Ridicare" : "Livrare"} · ${c.primire?.interval ?? ""}</div>
+      ${c.status === "Anulata" ? '<div class="alerta stoc">Comanda a fost anulată; suma se rambursează pe card.</div>' : ""}
+      ${pasi.map(([s, eticheta]) => `<div class="linie"><span>${atins[s] ? "✓" : "○"} ${eticheta}</span><span class="mic">${atins[s] ? ora(atins[s]) : ""}</span></div>`).join("")}
+      ${inlocuiri}${eliminate}${cod}${urmarire}</div>`;
+  }).join("");
 }};
 
 async function arata(ecran) {

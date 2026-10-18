@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RetailX · culegere</title>
+<style>
+  :root { --verde:#1f5c4a; --verde-soft:#e3efe9; --rosu:#b3261e; --fond:#f1f3f2; --card:#fff; --text:#1d2420; --gri:#66706b; --linie:#dde2df; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--fond); color:var(--text); }
+  header { background:var(--verde); color:#fff; padding:14px 18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header select { font:inherit; padding:4px 8px; border-radius:6px; border:0; }
+  main { max-width:640px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .card { background:var(--card); border:1px solid var(--linie); border-radius:12px; padding:14px; }
+  .linie { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; padding:10px 0; border-top:1px solid var(--linie); }
+  .mic { color:var(--gri); font-size:13px; }
+  .regula { font-size:13px; padding:4px 8px; border-radius:6px; background:var(--verde-soft); color:var(--verde); display:inline-block; margin-top:2px; }
+  .regula.nu { background:#fbe5e3; color:var(--rosu); }
+  input[type=number] { width:64px; font:inherit; padding:6px; border:1px solid var(--linie); border-radius:6px; }
+  button { font:inherit; font-weight:600; border:0; border-radius:8px; padding:12px; background:var(--verde); color:#fff; cursor:pointer; width:100%; margin-top:10px; }
+  .gol { text-align:center; color:var(--gri); padding:30px; }
+</style>
+</head>
+<body>
+<header><b>Culegere comenzi online</b><select id="magazin"></select><span class="mic" style="color:#d6e7df">Elena · tura de zi</span></header>
+<main id="lista"></main>
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (url, opt = {}) => {
+  const r = await fetch(url, { headers: { "content-type": "application/json" }, ...opt, body: opt.body && JSON.stringify(opt.body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.eroare || "Eroare");
+  return data;
+};
+
+async function incarca() {
+  const comenzi = await api(`/api/magazin/${$("magazin").value}/de-cules`);
+  if (!comenzi.length) { $("lista").innerHTML = '<div class="gol">Nicio comandă de cules acum.</div>'; return; }
+  $("lista").innerHTML = comenzi.map((c) => `
+    <section class="card" data-nr="${c.nrComanda}">
+      <b>#${c.nrComanda}</b> <span class="mic">· ${c.tipPrimire === "ridicare" ? "ridicare" : "livrare"} · ${c.primire?.interval ?? ""}</span>
+      ${c.linii.map((l) => `
+        <div class="linie">
+          <div>${l.cantitate} × ${l.denumire}<br>
+            <span class="regula ${l.acceptaInlocuire ? "" : "nu"}">${l.acceptaInlocuire ? "Dacă lipsește: înlocuitor similar, preț egal sau mai mic" : "Dacă lipsește: elimină doar această linie"}</span></div>
+          <label class="mic">găsit <input type="number" min="0" max="${l.cantitate}" value="${l.cantitate}" data-cod="${l.codProdus}"></label>
+        </div>`).join("")}
+      <button data-gata="${c.nrComanda}">Comanda e ambalată</button>
+    </section>`).join("");
+  document.querySelectorAll("[data-gata]").forEach((b) => (b.onclick = async () => {
+    const card = b.closest("section");
+    const rezultate = [...card.querySelectorAll("input[data-cod]")].map((i) => ({ codProdus: i.dataset.cod, gasit: Number(i.value) }));
+    await api(`/api/magazin/comenzi/${b.dataset.gata}/culegere`, { method: "POST", body: { rezultate } });
+    incarca();
+  }));
+}
+
+(async () => {
+  const magazine = await api("/api/magazine");
+  $("magazin").innerHTML = magazine.map((m) => `<option value="${m.idMagazin}">${m.nume}</option>`).join("");
+  $("magazin").onchange = incarca;
+  incarca();
+})();
+</script>
+</body>
+</html>
