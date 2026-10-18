@@ -13,6 +13,7 @@ import type { Comanda, LinieComanda, Produs } from "../../domain/model.js";
 import type { FulfillmentService } from "../fulfillment/fulfillmentService.js";
 import type { NotificationService } from "../notifications/notificationService.js";
 import type { OrderService } from "../orders/orderService.js";
+import { NegasitError } from "../../core/errors.js";
 
 export interface RezultatCulegere {
   codProdus: string;
@@ -40,7 +41,7 @@ export class PickingService {
    */
   culege(nrComanda: string, rezultate: RezultatCulegere[] = []): Comanda {
     const c = this.orders.get(nrComanda);
-    if (!c) throw new Error(`Comanda nu există: ${nrComanda}`);
+    if (!c) throw new NegasitError(`Comanda ${nrComanda} nu există`);
     if (c.status === "Confirmata") this.fulfillment.incepePregatirea(nrComanda);
 
     const culese: { codProdus: string; cantitate: number }[] = [];

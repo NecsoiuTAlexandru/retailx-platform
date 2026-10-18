@@ -24,6 +24,7 @@ import type { CartService } from "../cart/cartService.js";
 import type { Reducere, PricingService } from "../pricing/pricingService.js";
 import type { StockService } from "../stock/stockService.js";
 import type { SlotService } from "../fulfillment/slotService.js";
+import { NegasitError } from "../../core/errors.js";
 
 export class CosGolError extends Error {
   constructor() {
@@ -188,7 +189,7 @@ export class OrderService {
   /** Anulare (clientul anulează înainte de pregătire / comanda neridicată): rambursare integrală. */
   anuleaza(nrComanda: string, motiv: string): Comanda {
     const c = this.comenzi.get(nrComanda);
-    if (!c) throw new Error(`Comanda nu există: ${nrComanda}`);
+    if (!c) throw new NegasitError(`Comanda ${nrComanda} nu există`);
     this.status(c, "Anulata", motiv);
     if (c.rezervareId) this.stock.elibereaza(c.rezervareId);
     this.slots.elibereaza(nrComanda);

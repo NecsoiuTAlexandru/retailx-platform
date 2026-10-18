@@ -7,6 +7,7 @@
  *    prețul și stocul se reverifică, iar clientul vede ce s-a schimbat de când a adăugat produsul.
  */
 import type { Bani } from "../../core/money.js";
+import { NegasitError, ValidareError } from "../../core/errors.js";
 import type { Produs } from "../../domain/model.js";
 import type { EtichetaDisponibilitate, StockService } from "../stock/stockService.js";
 
@@ -45,6 +46,7 @@ export interface VerificareLinie {
 }
 
 export const idCosClient = (idClient: string) => `client:${idClient}`;
+export const MAX_CANTITATE = 99;
 
 export class CartService {
   private cosuri = new Map<string, Cos>();
@@ -63,14 +65,25 @@ export class CartService {
     return c;
   }
 
+  /**
+   * S8 · remediere: schimbarea magazinului sau a produselor după inițierea plății invalida
+   * rezervarea doar parțial (produsul nou nu era rezervat; rezervarea rămânea în magazinul vechi).
+   * Acum orice modificare a coșului eliberează rezervarea; ea se refăcea la plată.
+   */
   setMagazin(id: string, idMagazin: string): Cos {
     const c = this.get(id);
+    if (c.idMagazin !== idMagazin) this.elibereazaRezervarea(c);
     c.idMagazin = idMagazin;
     return c;
   }
 
   adauga(id: string, codProdus: string, cantitate = 1, canal?: Canal): Cos {
+    if (!this.catalog.has(codProdus)) throw new NegasitError(`Produsul ${codProdus} nu există în catalog`);
+    if (!Number.isInteger(cantitate) || cantitate < 1 || cantitate > MAX_CANTITATE) {
+      throw new ValidareError(`Cantitatea trebuie să fie un număr întreg între 1 și ${MAX_CANTITATE}`);
+    }
     const c = this.get(id);
+    this.elibereazaRezervarea(c);
     const pret = this.catalog.get(codProdus)?.pret;
     const l = c.linii.find((x) => x.codProdus === codProdus);
     if (l) {
@@ -84,7 +97,7 @@ export class CartService {
   elimina(id: string, codProdus: string): Cos {
     const c = this.get(id);
     c.linii = c.linii.filter((l) => l.codProdus !== codProdus);
-    if (!c.linii.length) this.elibereazaRezervarea(c);
+    this.elibereazaRezervarea(c);
     return c;
   }
 

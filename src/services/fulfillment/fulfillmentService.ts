@@ -13,6 +13,7 @@ import type { Comanda } from "../../domain/model.js";
 import type { CourierSimulator } from "../../courier/courierSimulator.js";
 import type { OrderService } from "../orders/orderService.js";
 import type { StockService } from "../stock/stockService.js";
+import { NegasitError } from "../../core/errors.js";
 
 export const TERMEN_RIDICARE = 48 * HOUR;
 
@@ -33,7 +34,7 @@ export class FulfillmentService {
 
   private comanda(nr: string): Comanda {
     const c = this.orders.get(nr);
-    if (!c) throw new Error(`Comanda nu există: ${nr}`);
+    if (!c) throw new NegasitError(`Comanda ${nr} nu există`);
     return c;
   }
 

@@ -85,3 +85,13 @@ Sprint Goal: „KPI-urile se măsoară corect și platforma rezistă la vârf.�
 - Optimizare: cantitățile rezervate indexate pe magazin|produs; expirarea parcurge doar rezervările temporare.
 - Instrument de test de încărcare (`npm run load`).
 - Teste: TC-14 (KPI = calcul manual), TC-15 (250 de clienți simultan: p95 sub 3 s, zero erori, nicio comandă pierdută). Decizia PO: US-11, NFR-01 acceptate.
+
+## S8 · Stabilizare — tag `s8`
+Sprint Goal: „Platforma e gata de pilot.” (Poarta 2)
+
+- Remediere: un produs adăugat în coș după inițierea plății nu era rezervat (se refolosea rezervarea veche); orice modificare a coșului eliberează acum rezervarea.
+- Remediere: schimbarea magazinului după inițierea plății lăsa rezervarea în magazinul vechi.
+- Validarea intrărilor: produs inexistent, cantitate invalidă, JSON invalid, rută necunoscută → mesaje clare (404/400), nu erori interne.
+- Endpoint de sănătate `/api/sanatate` pentru monitorizarea pilotului (sistem central, coada de evenimente, rezervări active).
+- Raportul de regresie `npm run regresie`: TC-01–TC-15 toate trecute, zero defecte deschise.
+- README cu trasabilitatea cerință → cod → test și scenariul de demo.

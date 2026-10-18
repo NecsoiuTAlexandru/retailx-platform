@@ -17,6 +17,7 @@ import { CodRidicareGresitError } from "../services/fulfillment/fulfillmentServi
 import { TranzitieInvalidaError } from "../domain/orderState.js";
 import { PuncteInsuficienteError } from "../services/loyalty/loyaltyService.js";
 import { ReturRefuzatError } from "../services/returns/returnService.js";
+import { NegasitError, ValidareError } from "../core/errors.js";
 import { ProdusNecunoscutError } from "../services/pricing/pricingService.js";
 
 export function createApp(p: Platform) {
@@ -142,7 +143,23 @@ export function createApp(p: Platform) {
     res.json({ online: p.central.isOnline() });
   });
 
+  // ---------- S8 · monitorizare pentru pilot ----------
+  app.get("/api/sanatate", (_req, res) => {
+    res.json({
+      status: p.central.isOnline() ? "ok" : "degradat",
+      sistemCentral: p.central.isOnline() ? "online" : "offline",
+      evenimenteInAsteptare: p.stock.processor.pending(),
+      rezervariActive: p.stock.rezervariActive(),
+      comenzi: p.orders.toate().length,
+    });
+  });
+
+  app.use("/api", (_req, res) => res.status(404).json({ eroare: "Ruta nu există" }));
+
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof SyntaxError && "body" in err) return res.status(400).json({ eroare: "Cererea nu este JSON valid" });
+    if (err instanceof NegasitError) return res.status(404).json({ eroare: err.message });
+    if (err instanceof ValidareError) return res.status(400).json({ eroare: err.message });
     if (err instanceof StocInsuficientError) {
       return res.status(409).json({ eroare: err.message, lipsa: err.lipsa });
     }
