@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RetailX</title>
+<style>
+  :root { --verde:#1f5c4a; --verde-soft:#e3efe9; --rosu:#b3261e; --galben:#8a5a00; --galben-soft:#fbf1dc;
+          --fond:#f6f4ef; --card:#fff; --text:#1d2420; --gri:#66706b; --linie:#e2e0d9; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--fond); color:var(--text); }
+  header { background:var(--card); border-bottom:1px solid var(--linie); padding:12px 20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header b { font-size:22px; color:var(--verde); } header b span { color:var(--rosu); }
+  select, button { font:inherit; }
+  select { padding:6px 10px; border:1px solid var(--linie); border-radius:8px; background:#fff; }
+  main { max-width:1080px; margin:20px auto; padding:0 16px; display:grid; grid-template-columns:1fr 360px; gap:20px; }
+  @media (max-width:820px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--linie); border-radius:12px; padding:18px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:0 0 12px; }
+  .pret { font-size:26px; font-weight:700; } .mic { color:var(--gri); font-size:13px; }
+  .eticheta { display:inline-block; padding:6px 12px; border-radius:8px; font-weight:600; font-size:14px; margin:10px 0; }
+  .in_stoc { background:var(--verde-soft); color:var(--verde); }
+  .indisponibil { background:#fbe5e3; color:var(--rosu); }
+  .neconfirmat { background:var(--galben-soft); color:var(--galben); }
+  table { width:100%; border-collapse:collapse; } td { padding:7px 0; border-top:1px solid var(--linie); }
+  td:last-child { text-align:right; font-weight:600; }
+  .btn { background:var(--verde); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; }
+  .btn.sec { background:#fff; color:var(--verde); border:1px solid var(--verde); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .rand { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .linie-cos { display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--linie); }
+  .mesaj { padding:10px 12px; border-radius:8px; margin-top:10px; font-size:14px; }
+  .mesaj.ok { background:var(--verde-soft); color:var(--verde); } .mesaj.err { background:#fbe5e3; color:var(--rosu); }
+  .demo { margin-top:20px; border-style:dashed; }
+  .stack { display:flex; flex-direction:column; gap:16px; }
+</style>
+</head>
+<body>
+<header>
+  <b>Retail<span>X</span></b>
+  <label class="mic">Produs <select id="produs"></select></label>
+  <label class="mic">Magazinul tău <select id="magazin"></select></label>
+</header>
+
+<main>
+  <div class="stack">
+    <section class="card">
+      <h1 id="denumire">…</h1>
+      <div class="mic" id="cod"></div>
+      <div class="pret" id="pret"></div>
+      <div id="eticheta" class="eticheta"></div>
+      <div class="rand"><button class="btn" id="adauga">Adaugă în coș</button></div>
+    </section>
+    <section class="card">
+      <h2>Disponibilitate în alte magazine <span class="mic">· actualizare ≤ 5 min</span></h2>
+      <table id="alte"></table>
+    </section>
+    <section class="card demo">
+      <h2>Simulări (mediul de test)</h2>
+      <div class="rand">
+        <button class="btn sec" id="vinde">Vinde 1 buc. la casă</button>
+        <button class="btn sec" id="central">Oprește sistemul central</button>
+      </div>
+      <p class="mic">Vânzarea la casă ajunge online prin evenimentele sistemului central. Cu sistemul oprit, după 5 minute stocul devine „neconfirmat”.</p>
+    </section>
+  </div>
+
+  <aside class="stack">
+    <section class="card" id="panou-cos">
+      <h2>Coșul tău</h2>
+      <div id="linii"></div>
+      <div class="rand" style="margin-top:12px">
+        <button class="btn" id="plateste">Inițiază plata</button>
+        <button class="btn sec" id="goleste">Golește coșul</button>
+      </div>
+      <div id="rezervare" class="mic"></div>
+      <div id="mesaj"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+const COS = "web-" + Math.random().toString(36).slice(2, 8);
+const $ = (id) => document.getElementById(id);
+const leiFmt = (b) => (b / 100).toLocaleString("ro-RO", { minimumFractionDigits: 2 }) + " lei";
+const api = async (url, opt = {}) => {
+  const r = await fetch(url, { headers: { "content-type": "application/json" }, ...opt, body: opt.body && JSON.stringify(opt.body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.eroare || "Eroare"), { data });
+  return data;
+};
+let produse = [], magazine = [], centralOnline = true, rezervareExpira = null;
+
+const textEticheta = (d) => {
+  if (d.eticheta === "in_stoc") return `● În stoc · ${d.disponibil} buc. · confirmat acum ${Math.round(d.vechimeSecunde / 60)} min`;
+  if (d.eticheta === "indisponibil") return "Indisponibil";
+  return "Disponibilitate neconfirmată";
+};
+const scurt = { in_stoc: "În stoc", indisponibil: "Indisponibil", neconfirmat: "Disponibilitate neconfirmată" };
+const culoare = { in_stoc: "var(--verde)", indisponibil: "var(--rosu)", neconfirmat: "var(--galben)" };
+
+async function init() {
+  [produse, magazine] = await Promise.all([api("/api/produse"), api("/api/magazine")]);
+  $("produs").innerHTML = produse.map((p) => `<option value="${p.cod}">${p.denumire}</option>`).join("");
+  $("magazin").innerHTML = magazine.map((m) => `<option value="${m.idMagazin}">${m.nume}</option>`).join("");
+  $("produs").onchange = afiseazaProdus;
+  $("magazin").onchange = async () => { await api(`/api/cos/${COS}/magazin`, { method: "PUT", body: { idMagazin: $("magazin").value } }); refresh(); };
+  $("adauga").onclick = async () => { await api(`/api/cos/${COS}/linii`, { method: "POST", body: { codProdus: $("produs").value } }); refresh(); };
+  $("goleste").onclick = async () => { await api(`/api/cos/${COS}`, { method: "DELETE" }); rezervareExpira = null; mesaj(""); refresh(); };
+  $("plateste").onclick = initiazaPlata;
+  $("vinde").onclick = async () => { await api("/api/demo/vinde-la-casa", { method: "POST", body: { idMagazin: $("magazin").value, codProdus: $("produs").value } }); setTimeout(refresh, 1200); };
+  $("central").onclick = async () => {
+    centralOnline = !centralOnline;
+    await api("/api/demo/sistem-central", { method: "POST", body: { online: centralOnline } });
+    $("central").textContent = centralOnline ? "Oprește sistemul central" : "Pornește sistemul central";
+  };
+  await api(`/api/cos/${COS}/magazin`, { method: "PUT", body: { idMagazin: $("magazin").value } });
+  afiseazaProdus();
+  setInterval(refresh, 5000);
+  setInterval(cronometru, 1000);
+}
+
+function afiseazaProdus() {
+  const p = produse.find((x) => x.cod === $("produs").value);
+  $("denumire").textContent = p.denumire;
+  $("cod").textContent = `Cod produs ${p.cod}` + (p.areGarantieSGR ? " · ambalaj cu garanție SGR" : "");
+  $("pret").innerHTML = leiFmt(p.pret) + (p.areGarantieSGR ? ' <span class="mic">+ 0,50 lei garanție SGR</span>' : "");
+  refresh();
+}
+
+async function refresh() {
+  const cod = $("produs").value, mag = $("magazin").value;
+  const d = await api(`/api/produse/${cod}/disponibilitate?magazin=${mag}`);
+  $("eticheta").className = "eticheta " + d.magazinAles.eticheta;
+  $("eticheta").textContent = textEticheta(d.magazinAles);
+  $("adauga").disabled = d.magazinAles.eticheta !== "in_stoc";
+  const nume = Object.fromEntries(magazine.map((m) => [m.idMagazin, m.nume]));
+  $("alte").innerHTML = d.alteMagazine.map((a) => `<tr><td>${nume[a.idMagazin]}</td><td style="color:${culoare[a.eticheta]}">${scurt[a.eticheta]}</td></tr>`).join("");
+  await afiseazaCos();
+}
+
+async function afiseazaCos() {
+  const c = await api(`/api/cos/${COS}`);
+  const den = Object.fromEntries(produse.map((p) => [p.cod, p.denumire]));
+  $("linii").innerHTML = c.linii.length
+    ? c.linii.map((l) => `<div class="linie-cos"><span>${l.cantitate} × ${den[l.codProdus]}</span></div>`).join("")
+    : '<p class="mic">Coșul e gol.</p>';
+  $("plateste").disabled = !c.linii.length;
+}
+
+async function initiazaPlata() {
+  try {
+    const r = await api(`/api/cos/${COS}/rezervare`, { method: "POST" });
+    rezervareExpira = r.expira;
+    mesaj("Produsele sunt rezervate pentru tine.", "ok");
+  } catch (e) {
+    const lipsa = e.data?.lipsa?.map((l) => `${produse.find((p) => p.cod === l.codProdus)?.denumire}: mai sunt ${l.disponibila}`).join("; ");
+    mesaj(`Produsul nu mai este disponibil în cantitatea cerută. ${lipsa ?? ""}`, "err");
+  }
+}
+
+function cronometru() {
+  if (!rezervareExpira) { $("rezervare").textContent = ""; return; }
+  const s = Math.max(0, Math.round((rezervareExpira - Date.now()) / 1000));
+  $("rezervare").textContent = s ? `Produsele sunt rezervate pentru tine încă ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} min.` : "Rezervarea a expirat.";
+}
+
+function mesaj(text, tip) { $("mesaj").innerHTML = text ? `<div class="mesaj ${tip}">${text}</div>` : ""; }
+
+init();
+</script>
+</body>
+</html>

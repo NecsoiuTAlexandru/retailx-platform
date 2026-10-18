@@ -11,12 +11,18 @@ import type { Clock } from "../core/clock.js";
 import { MINUTE } from "../core/clock.js";
 import type { Magazin, Produs } from "../domain/model.js";
 
+/**
+ * Eveniment din sistemul central. „vanzare” = vânzare la casă;
+ * „heartbeat” = confirmarea periodică (o dată pe minut) că starea magazinului e la zi.
+ * Ambele trec prin același flux, deci o întârziere de procesare le afectează pe amândouă.
+ */
 export interface SaleEvent {
   seq: number;
+  tip: "vanzare" | "heartbeat";
   idMagazin: string;
   codProdus: string;
   cantitate: number;
-  /** Momentul vânzării la casă. */
+  /** Momentul la care starea din sistemul central era cea descrisă de eveniment. */
   at: number;
 }
 
@@ -108,10 +114,23 @@ export class CentralSystemSimulator {
   vindeLaCasa(idMagazin: string, codProdus: string, cantitate = 1): SaleEvent {
     const k = key(idMagazin, codProdus);
     this.stoc.set(k, Math.max(0, (this.stoc.get(k) ?? 0) - cantitate));
-    const e: SaleEvent = { seq: ++this.seq, idMagazin, codProdus, cantitate, at: this.clock.now() };
+    const e: SaleEvent = { seq: ++this.seq, tip: "vanzare", idMagazin, codProdus, cantitate, at: this.clock.now() };
     if (this.online) this.dispatch(e);
     else this.buffered.push(e);
     return e;
+  }
+
+  /** Heartbeat pentru toate magazinele (în producție: la fiecare minut). Offline nu se emite nimic. */
+  heartbeat(): void {
+    if (!this.online) return;
+    for (const idMagazin of this.magazine.keys()) {
+      this.dispatch({ seq: ++this.seq, tip: "heartbeat", idMagazin, codProdus: "", cantitate: 0, at: this.clock.now() });
+    }
+  }
+
+  /** Ultimul număr de secvență emis — folosit ca „watermark” la încărcarea inițială. */
+  lastSeq(): number {
+    return this.seq;
   }
 
   /** Scade stocul pentru produsele culese pentru o comandă online (nu emite eveniment de casă). */
