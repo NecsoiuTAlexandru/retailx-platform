@@ -2,12 +2,15 @@
  * Procesatorul evenimentelor din sistemul central.
  *
  * Fiecare eveniment costă un timp de procesare (apel în baza de date, invalidare cache).
- * Procesatorul ține o „bandă” de lucru: un eveniment începe după ce s-a terminat
- * cel dinaintea lui pe aceeași bandă. Evenimentele se aplică abia când procesarea lor s-a încheiat.
+ * Un eveniment începe după ce s-a terminat cel dinaintea lui pe aceeași bandă și se aplică
+ * abia când procesarea lui s-a încheiat.
  *
- * Sprint 1: O SINGURĂ bandă pentru toate magazinele (procesare secvențială).
- * La vârf, când toate magazinele trimit vânzările deodată, coada crește și stocul online
- * rămâne în urmă (DEF-01: 12 minute în loc de 5).
+ * Istoric:
+ *  - S1: o singură bandă pentru toate magazinele (procesare secvențială). La vârf coada creștea
+ *    și stocul online rămânea în urmă 12 minute (DEF-01).
+ *  - S2 (remedierea DEF-01): câte o bandă pentru fiecare magazin, procesate în paralel.
+ *    Ordinea evenimentelor se păstrează în interiorul aceluiași magazin, singura ordine care contează
+ *    pentru stocul lui.
  */
 import type { Clock } from "../../core/clock.js";
 import type { SaleEvent } from "../../central/centralSystem.js";
@@ -25,7 +28,7 @@ interface Lane {
 }
 
 export class SaleEventProcessor {
-  private lane: Lane = { busyUntil: 0, queue: [] };
+  private lanes = new Map<string, Lane>();
 
   constructor(
     private readonly clock: Clock,
@@ -34,22 +37,31 @@ export class SaleEventProcessor {
   ) {}
 
   enqueue(e: SaleEvent): void {
-    const start = Math.max(this.lane.busyUntil, this.clock.now());
+    let lane = this.lanes.get(e.idMagazin);
+    if (!lane) {
+      lane = { busyUntil: 0, queue: [] };
+      this.lanes.set(e.idMagazin, lane);
+    }
+    const start = Math.max(lane.busyUntil, this.clock.now());
     const doneAt = start + this.costMs;
-    this.lane.busyUntil = doneAt;
-    this.lane.queue.push({ e, doneAt });
+    lane.busyUntil = doneAt;
+    lane.queue.push({ e, doneAt });
   }
 
   /** Aplică toate evenimentele a căror procesare s-a încheiat până acum. */
   drain(): void {
     const now = this.clock.now();
-    while (this.lane.queue.length && this.lane.queue[0].doneAt <= now) {
-      const p = this.lane.queue.shift()!;
-      this.apply(p.e, p.doneAt);
+    for (const lane of this.lanes.values()) {
+      while (lane.queue.length && lane.queue[0].doneAt <= now) {
+        const p = lane.queue.shift()!;
+        this.apply(p.e, p.doneAt);
+      }
     }
   }
 
   pending(): number {
-    return this.lane.queue.length;
+    let n = 0;
+    for (const l of this.lanes.values()) n += l.queue.length;
+    return n;
   }
 }

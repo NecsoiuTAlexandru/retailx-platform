@@ -17,11 +17,10 @@ describe("US-01 · stocul verificat", () => {
   });
 
   /**
-   * DEF-01 (majoră): la vârf, toate magazinele trimit vânzările deodată; procesarea secvențială
-   * a evenimentelor ține stocul online în urmă ~12 minute. Testul e marcat „fails” în S1
-   * și se reia în S2 după remediere (decizia PO la Sprint Review, 12 martie 2027).
+   * DEF-01 (majoră), găsit în S1: procesarea secvențială ținea stocul în urmă 12 minute la vârf.
+   * Remediat în S2 prin procesare în paralel pe magazin — retest TC-01b trecut.
    */
-  it.fails("TC-01b · la vârf, pe 120 de magazine, actualizarea rămâne în ≤ 5 minute [DEF-01]", () => {
+  it("TC-01b · la vârf, pe 120 de magazine, actualizarea rămâne în ≤ 5 minute [retest DEF-01]", () => {
     const { clock, p } = platformaLaScara(120);
     const tinta = "M120";
     // 10 runde: în fiecare rundă fiecare magazin trimite o vânzare; ultima e vânzarea țintă.

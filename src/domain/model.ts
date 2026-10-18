@@ -30,6 +30,55 @@ export type StatusComanda =
   | "Abandonata"
   | "Returnata";
 
+export type TipPrimire = "livrare" | "ridicare";
+
+export interface LinieComanda {
+  codProdus: string;
+  denumire: string;
+  cantitate: number;
+  pretUnitar: Bani;
+  acceptaInlocuire: boolean;
+}
+
+export type StatusPlata = "initiata" | "autorizata" | "refuzata" | "rambursata";
+
+export interface Plata {
+  suma: Bani;
+  status: StatusPlata;
+  cheieIdempotenta: string;
+  idTranzactie?: string;
+  motiv?: string;
+  la: number;
+}
+
+/** Costul total defalcat (FR-03): ce vede clientul înainte de butonul de plată. */
+export interface Deviz {
+  linii: { codProdus: string; denumire: string; cantitate: number; pretUnitar: Bani; total: Bani }[];
+  produse: Bani;
+  livrare: Bani;
+  garantieSGR: Bani;
+  ambalajeSGR: number;
+  reduceri: { descriere: string; suma: Bani }[];
+  total: Bani;
+}
+
+export interface Comanda {
+  nrComanda: string;
+  status: StatusComanda;
+  idCos: string;
+  idClient?: string;
+  idMagazin: string;
+  tipPrimire: TipPrimire;
+  linii: LinieComanda[];
+  deviz: Deviz;
+  costTotal: Bani;
+  plati: Plata[];
+  rezervareId?: string;
+  dataCrearii: number;
+  dataConfirmarii?: number;
+  istoric: { status: StatusComanda; la: number; motiv?: string }[];
+}
+
 export interface StocMagazin {
   idMagazin: string;
   codProdus: string;

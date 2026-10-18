@@ -6,6 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Platform } from "../platform.js";
 import { StocInsuficientError } from "../services/stock/stockService.js";
+import { CosGolError, PlataRefuzataError, TotalModificatError } from "../services/orders/orderService.js";
+import { ProdusNecunoscutError } from "../services/pricing/pricingService.js";
 
 export function createApp(p: Platform) {
   const app = express();
@@ -38,6 +40,23 @@ export function createApp(p: Platform) {
   app.delete("/api/cos/:id", (req, res) => res.json(p.cart.goleste(req.params.id)));
   app.post("/api/cos/:id/rezervare", (req, res) => res.status(201).json(p.cart.rezerva(req.params.id)));
 
+  // ---------- Finalizarea comenzii (US-03, US-04) ----------
+  app.post("/api/cos/:id/deviz", (req, res) => res.json(p.orders.deviz(req.params.id, req.body.tipPrimire ?? "ridicare")));
+  app.post("/api/cos/:id/plata", (req, res) => {
+    const c = p.orders.plaseaza(req.params.id, {
+      tipPrimire: req.body.tipPrimire,
+      tokenCard: req.body.tokenCard,
+      totalAfisat: Number(req.body.totalAfisat),
+      cheieIdempotenta: String(req.body.cheieIdempotenta),
+    });
+    res.status(201).json(c);
+  });
+  app.get("/api/comenzi/:nr", (req, res) => {
+    const c = p.orders.get(req.params.nr);
+    if (!c) return res.status(404).json({ eroare: "Comanda nu există" });
+    res.json(c);
+  });
+
   // ---------- Simulări pentru demo (mediul de test) ----------
   app.post("/api/demo/vinde-la-casa", (req, res) => {
     res.json(p.central.vindeLaCasa(req.body.idMagazin, req.body.codProdus, Number(req.body.cantitate ?? 1)));
@@ -51,6 +70,14 @@ export function createApp(p: Platform) {
     if (err instanceof StocInsuficientError) {
       return res.status(409).json({ eroare: err.message, lipsa: err.lipsa });
     }
+    if (err instanceof TotalModificatError) {
+      return res.status(409).json({ eroare: err.message, deviz: err.devizNou });
+    }
+    if (err instanceof PlataRefuzataError) {
+      return res.status(402).json({ eroare: err.message, nrComanda: err.comanda.nrComanda });
+    }
+    if (err instanceof CosGolError) return res.status(400).json({ eroare: err.message });
+    if (err instanceof ProdusNecunoscutError) return res.status(404).json({ eroare: err.message });
     console.error(err);
     res.status(500).json({ eroare: "Eroare internă" });
   });

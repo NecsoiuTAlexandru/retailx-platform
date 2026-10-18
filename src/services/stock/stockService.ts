@@ -39,7 +39,9 @@ export interface RezervareStoc {
   idMagazin: string;
   linii: LinieRezervare[];
   creata: number;
+  /** Infinity după confirmarea comenzii: stocul rămâne alocat până la culegere. */
   expira: number;
+  nrComanda?: string;
 }
 
 export class StocInsuficientError extends Error {
@@ -167,6 +169,19 @@ export class StockService {
 
   elibereaza(id: string): boolean {
     return this.rezervari.delete(id);
+  }
+
+  /** Plata autorizată: rezervarea devine alocare pentru comandă și nu mai expiră. */
+  confirma(id: string, nrComanda: string): void {
+    const r = this.rezervari.get(id);
+    if (!r) throw new Error(`Rezervare inexistentă sau expirată: ${id}`);
+    r.expira = Number.POSITIVE_INFINITY;
+    r.nrComanda = nrComanda;
+  }
+
+  /** Rezervarea mai e valabilă (nu a expirat)? */
+  esteValida(id: string): boolean {
+    return this.rezervare(id) !== undefined;
   }
 
   private expiraRezervari(): void {

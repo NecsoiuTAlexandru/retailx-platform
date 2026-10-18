@@ -69,8 +69,20 @@
     <section class="card" id="panou-cos">
       <h2>Coșul tău</h2>
       <div id="linii"></div>
-      <div class="rand" style="margin-top:12px">
-        <button class="btn" id="plateste">Inițiază plata</button>
+      <div class="rand" style="margin:12px 0">
+        <label><input type="radio" name="primire" value="ridicare" checked> Ridicare din magazin · gratuit</label>
+        <label><input type="radio" name="primire" value="livrare"> Livrare la domiciliu</label>
+      </div>
+      <table id="deviz"></table>
+      <label class="mic" style="display:block;margin:12px 0">Card de test
+        <select id="card">
+          <option value="tok_visa_ok">Visa •••• 4242 (trece)</option>
+          <option value="tok_visa_fonduri_insuficiente">Visa •••• 0002 (fonduri insuficiente)</option>
+          <option value="tok_visa_3ds_esuat">Visa •••• 3220 (3-D Secure eșuat)</option>
+        </select>
+      </label>
+      <div class="rand">
+        <button class="btn" id="plateste">Plătește</button>
         <button class="btn sec" id="goleste">Golește coșul</button>
       </div>
       <div id="rezervare" class="mic"></div>
@@ -146,17 +158,49 @@ async function afiseazaCos() {
     ? c.linii.map((l) => `<div class="linie-cos"><span>${l.cantitate} × ${den[l.codProdus]}</span></div>`).join("")
     : '<p class="mic">Coșul e gol.</p>';
   $("plateste").disabled = !c.linii.length;
+  await afiseazaDeviz(c.linii.length > 0);
+}
+
+// ---------- S2: costul total înainte de plată (US-03) și plata (US-04) ----------
+let devizCurent = null;
+let cheieIdempotenta = crypto.randomUUID();
+const tipPrimire = () => document.querySelector('input[name="primire"]:checked').value;
+document.querySelectorAll('input[name="primire"]').forEach((r) => (r.onchange = () => afiseazaCos()));
+
+async function afiseazaDeviz(areProduse) {
+  if (!areProduse) { $("deviz").innerHTML = ""; devizCurent = null; $("plateste").textContent = "Plătește"; return; }
+  const d = await api(`/api/cos/${COS}/deviz`, { method: "POST", body: { tipPrimire: tipPrimire() } });
+  devizCurent = d;
+  const rand = (eticheta, suma) => `<tr><td>${eticheta}</td><td>${suma}</td></tr>`;
+  $("deviz").innerHTML =
+    rand(`Produse (${d.linii.reduce((s, l) => s + l.cantitate, 0)})`, leiFmt(d.produse)) +
+    rand("Livrare / ridicare", leiFmt(d.livrare)) +
+    rand(`Garanție SGR (${d.ambalajeSGR} ambalaje)`, leiFmt(d.garantieSGR)) +
+    d.reduceri.map((r) => rand(r.descriere, "−" + leiFmt(r.suma))).join("") +
+    `<tr><td><b>Total de plată</b></td><td><b>${leiFmt(d.total)}</b></td></tr>`;
+  $("plateste").textContent = `Plătește ${leiFmt(d.total)}`;
 }
 
 async function initiazaPlata() {
+  if (!devizCurent) return;
   try {
-    const r = await api(`/api/cos/${COS}/rezervare`, { method: "POST" });
-    rezervareExpira = r.expira;
-    mesaj("Produsele sunt rezervate pentru tine.", "ok");
+    const c = await api(`/api/cos/${COS}/plata`, {
+      method: "POST",
+      body: { tipPrimire: tipPrimire(), tokenCard: $("card").value, totalAfisat: devizCurent.total, cheieIdempotenta },
+    });
+    cheieIdempotenta = crypto.randomUUID();
+    rezervareExpira = null;
+    mesaj(`Comanda ${c.nrComanda} a fost confirmată. Ai plătit ${leiFmt(c.costTotal)}.`, "ok");
   } catch (e) {
-    const lipsa = e.data?.lipsa?.map((l) => `${produse.find((p) => p.cod === l.codProdus)?.denumire}: mai sunt ${l.disponibila}`).join("; ");
-    mesaj(`Produsul nu mai este disponibil în cantitatea cerută. ${lipsa ?? ""}`, "err");
+    cheieIdempotenta = crypto.randomUUID();
+    if (e.data?.lipsa) {
+      const lipsa = e.data.lipsa.map((l) => `${produse.find((p) => p.cod === l.codProdus)?.denumire}: mai sunt ${l.disponibila}`).join("; ");
+      mesaj(`Produsul nu mai este disponibil în cantitatea cerută. ${lipsa}`, "err");
+    } else {
+      mesaj(e.message, "err");
+    }
   }
+  refresh();
 }
 
 function cronometru() {

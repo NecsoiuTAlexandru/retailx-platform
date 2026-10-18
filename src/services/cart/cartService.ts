@@ -68,10 +68,19 @@ export class CartService {
     return r;
   }
 
-  private elibereazaRezervarea(c: Cos): void {
+  /** Plata refuzată: rezervarea se eliberează, dar produsele rămân în coș (US-04). */
+  elibereazaRezervarea(idOrCos: string | Cos): void {
+    const c = typeof idOrCos === "string" ? this.get(idOrCos) : idOrCos;
     if (c.rezervareId) {
       this.stock.elibereaza(c.rezervareId);
       c.rezervareId = undefined;
     }
+  }
+
+  /** După confirmarea comenzii: coșul se golește, iar rezervarea rămâne alocată comenzii. */
+  dupaComanda(id: string): void {
+    const c = this.get(id);
+    c.linii = [];
+    c.rezervareId = undefined;
   }
 }
