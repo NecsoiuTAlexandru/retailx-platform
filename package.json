@@ -1,6 +1,6 @@
 {
   "name": "retailx-platform",
-  "version": "0.5.0-s5",
+  "version": "0.6.0-s6",
   "private": true,
   "description": "RetailX — prototip funcțional al platformei omnichannel (BRD v1.0), construit pe sprinturi",
   "type": "module",

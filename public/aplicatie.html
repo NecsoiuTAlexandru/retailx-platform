@@ -31,6 +31,7 @@
     <button data-ecran="cos" aria-current="page">Coș</button>
     <button data-ecran="comenzi">Comenzi</button>
     <button data-ecran="card">Card</button>
+    <button data-ecran="retur">Retur</button>
   </nav>
 </div>
 
@@ -98,6 +99,48 @@ ECRANE.card = { titlu: "Cardul meu RetailX", subtitlu: "Același card în magazi
     <div class="card"><b>Ultimele puncte</b>${istoric || '<p class="mic">Încă nu ai puncte.</p>'}</div>
     <div class="card"><b>Oferta ta săptămâna asta</b><div>${oferta.text}</div>
       <div class="mic">${oferta.personalizata ? "Recomandare personalizată: activă pentru că ți-ai dat acordul." : "Recomandări personalizate: oprite. Le poți activa din Setări › Confidențialitate."}</div></div>`;
+}};
+
+// ---------- S6 · US-10: retur fără call center ----------
+const STARE_RETUR = { Inregistrata: "Înregistrată · aducem produsul în magazin", Aprobata: "Aprobată", Rambursata: "Rambursată", Respinsa: "Respinsă" };
+const zi = (ms) => new Date(ms).toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit" });
+ECRANE.retur = { titlu: "Cerere de retur", subtitlu: "Fără telefon la call center", async randeaza() {
+  const comenzi = (await api(`/api/clienti/${CLIENT}/comenzi`)).filter((c) => c.status === "Onorata");
+  const retururi = await api(`/api/clienti/${CLIENT}/retururi`);
+  const lista = retururi.reverse().map((r) => `<div class="card"><b>${r.id}</b> · comanda #${r.nrComanda}
+    <div class="mic">${r.linii.map((l) => `${l.cantitate} × ${l.denumire}`).join(", ")}</div>
+    <div>${STARE_RETUR[r.status]}${r.sumaRambursata ? ` · ${leiFmt(r.sumaRambursata)}` : ""}</div>
+    <div class="mic">Rambursare pe card până la ${zi(r.termenRambursare)}</div></div>`).join("");
+  if (!comenzi.length) return (lista || "") + '<div class="card mic">Returul se poate cere pentru comenzile predate în ultimele 14 zile.</div>';
+  const optiuni = comenzi.flatMap((c) => c.linii.filter((l) => !l.eliminata).map((l) =>
+    `<option value="${c.nrComanda}|${l.codProdus}">#${c.nrComanda} · ${l.inlocuire?.denumire ?? l.denumire}</option>`)).join("");
+  return `<form class="card" id="formRetur" style="display:flex;flex-direction:column;gap:10px">
+      <label class="mic">Produs<br><select id="rProdus" style="width:100%;padding:8px">${optiuni}</select></label>
+      <label class="mic">Motiv<br><select id="rMotiv" style="width:100%;padding:8px">
+        <option value="deteriorat">Produs deteriorat la livrare</option><option value="neconform">Nu corespunde descrierii</option>
+        <option value="razgandire">M-am răzgândit</option></select></label>
+      <label class="mic">Fotografie (opțional)<br><input type="file" id="rFoto" accept="image/*"></label>
+      <label class="mic">Cum îl returnezi<br><select id="rMod" style="width:100%;padding:8px">
+        <option value="magazin">În orice magazin RetailX · gratuit</option><option value="curier">Prin curier</option></select></label>
+      <button class="btn" type="submit">Trimite cererea</button>
+      <div id="rMesaj"></div>
+    </form>${lista}`;
+}, dupa() {
+  const f = $("formRetur");
+  if (!f) return;
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const [nrComanda, codProdus] = $("rProdus").value.split("|");
+    try {
+      const r = await api(`/api/clienti/${CLIENT}/retururi`, { method: "POST", body: {
+        nrComanda, linii: [{ codProdus, cantitate: 1 }], motiv: $("rMotiv").value, modReturnare: $("rMod").value,
+        fotografie: $("rFoto").files[0]?.name } });
+      $("rMesaj").innerHTML = `<div class="alerta" style="background:var(--verde-soft);color:var(--verde)"><b>Cererea ${r.id} a fost înregistrată.</b> Rambursare pe card în maximum 14 zile de la predare. Urmărești statusul aici.</div>`;
+      setTimeout(() => arata("retur"), 2500);
+    } catch (err) {
+      $("rMesaj").innerHTML = `<div class="alerta stoc">${err.message}</div>`;
+    }
+  };
 }};
 
 async function arata(ecran) {

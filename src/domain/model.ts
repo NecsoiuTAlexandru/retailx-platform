@@ -11,6 +11,8 @@ export interface Produs {
   areGarantieSGR: boolean;
   /** Folosită pentru propunerea unui înlocuitor similar (US-09). */
   categorie?: string;
+  /** Produs perisabil: exceptat de la retragerea în 14 zile (OUG 34/2014), cu excepția defectelor. */
+  perisabil?: boolean;
 }
 
 export interface Magazin {

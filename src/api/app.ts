@@ -16,6 +16,7 @@ import { IntervalIndisponibilError } from "../services/fulfillment/slotService.j
 import { CodRidicareGresitError } from "../services/fulfillment/fulfillmentService.js";
 import { TranzitieInvalidaError } from "../domain/orderState.js";
 import { PuncteInsuficienteError } from "../services/loyalty/loyaltyService.js";
+import { ReturRefuzatError } from "../services/returns/returnService.js";
 import { ProdusNecunoscutError } from "../services/pricing/pricingService.js";
 
 export function createApp(p: Platform) {
@@ -109,6 +110,14 @@ export function createApp(p: Platform) {
   });
   app.get("/api/clienti/:idClient/date-personale", (req, res) => res.json(p.fidelitate.exportaDate(req.params.idClient)));
 
+  // ---------- S6 · US-10: retur din cont ----------
+  app.get("/api/clienti/:idClient/retururi", (req, res) => res.json(p.retururi.aleClientului(req.params.idClient)));
+  app.post("/api/clienti/:idClient/retururi", (req, res) => {
+    const b = req.body;
+    res.status(201).json(p.retururi.cere(req.params.idClient, b.nrComanda, b.linii ?? [], b.motiv, b.modReturnare, b.fotografie));
+  });
+  app.post("/api/magazin/retururi/:id/primit", (req, res) => res.json(p.retururi.primesteProdusul(req.params.id)));
+
   // ---------- Magazin: pregătire și predare ----------
   app.post("/api/magazin/comenzi/:nr/pregatire", (req, res) => res.json(p.fulfillment.incepePregatirea(req.params.nr)));
   app.post("/api/magazin/comenzi/:nr/gata", (req, res) => res.json(p.fulfillment.finalizeazaPregatirea(req.params.nr)));
@@ -142,6 +151,7 @@ export function createApp(p: Platform) {
     if (err instanceof CodRidicareGresitError) return res.status(403).json({ eroare: err.message });
     if (err instanceof TranzitieInvalidaError) return res.status(409).json({ eroare: err.message });
     if (err instanceof PuncteInsuficienteError) return res.status(400).json({ eroare: err.message });
+    if (err instanceof ReturRefuzatError) return res.status(400).json({ eroare: err.message });
     if (err instanceof ProdusNecunoscutError) return res.status(404).json({ eroare: err.message });
     console.error(err);
     res.status(500).json({ eroare: "Eroare internă" });

@@ -64,3 +64,12 @@ Sprint Goal: „Un singur card de fidelitate în toate canalele.” (US-08 13 SP
 - Niveluri Bronz / Argint / Aur; oferta personalizată doar cu acordul „recomandări”; exportul datelor personale (art. 15 GDPR) — sprijin pentru DPIA cu DPO.
 - Aplicația mobilă: ecranul „Card”; website: puncte de primit și folosirea punctelor.
 - Teste: TC-12 + retest TC-11. Decizia PO: US-08 și US-09 acceptate.
+
+## S6 — tag `s6`
+Sprint Goal: „Clientul face retur din cont.” (US-10 8 SP)
+
+- Serviciul Retur: cerere din cont cu număr (RT-…), motiv, fotografie opțională, returnare în magazin sau prin curier.
+- Reguli OUG 34/2014: doar comenzi „Onorate”, în 14 zile; perisabilele doar dacă sunt deteriorate/neconforme; rambursare preț + SGR, iar la returul întregii comenzi și livrarea.
+- Statusul returului vizibil în cont, cu termenul rambursării; comanda devine „Returnată” la returul integral; punctele aferente sumei rambursate se retrag.
+- Aplicația mobilă: ecranul „Retur”.
+- Teste: TC-13 + testul end-to-end omnichannel (căutare → plată → înlocuire → ridicare → puncte → retur). Decizia PO: US-10 acceptat.

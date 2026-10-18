@@ -19,6 +19,7 @@ import { ConsentService } from "./services/consent/consentService.js";
 import { NotificationService } from "./services/notifications/notificationService.js";
 import { PickingService } from "./services/picking/pickingService.js";
 import { LoyaltyService } from "./services/loyalty/loyaltyService.js";
+import { ReturnService } from "./services/returns/returnService.js";
 
 export interface PlatformOptions {
   clock: Clock;
@@ -49,11 +50,12 @@ export function createPlatform({ clock, seed = true, incarca = true, capacitateI
   const picking = new PickingService(orders, fulfillment, central, notificari);
   const fidelitate = new LoyaltyService(clock, bus, central, cart, consent);
   orders.reduceriPentru = (idCos) => fidelitate.reduceri(idCos);
+  const retururi = new ReturnService(clock, orders, central, curier, fidelitate, notificari);
 
   if (incarca) stock.incarcaInitial();
   return {
     clock, bus, central, procesator, curier,
-    stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking, fidelitate,
+    stock, cart, pricing, slots, orders, fulfillment, consent, notificari, picking, fidelitate, retururi,
   };
 }
 

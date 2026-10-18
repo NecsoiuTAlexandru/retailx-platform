@@ -13,11 +13,11 @@ export const MAGAZINE = [
 ];
 
 export const PRODUSE = [
-  { cod: "100245", denumire: "Lapte integral 3,5% grăsime, 1 L", pret: lei(8.49), areGarantieSGR: true, categorie: "lapte" },
+  { cod: "100245", denumire: "Lapte integral 3,5% grăsime, 1 L", pret: lei(8.49), areGarantieSGR: true, categorie: "lapte", perisabil: true },
   { cod: "100310", denumire: "Apă plată 2 L", pret: lei(3.2), areGarantieSGR: true, categorie: "apa" },
-  { cod: "100512", denumire: "Iaurt grecesc 400 g", pret: lei(9.79), areGarantieSGR: false, categorie: "iaurt-grecesc" },
-  { cod: "100513", denumire: "Iaurt grecesc 380 g", pret: lei(8.99), areGarantieSGR: false, categorie: "iaurt-grecesc" },
-  { cod: "100720", denumire: "Pâine albă 500 g", pret: lei(5.49), areGarantieSGR: false, categorie: "paine" },
+  { cod: "100512", denumire: "Iaurt grecesc 400 g", pret: lei(9.79), areGarantieSGR: false, categorie: "iaurt-grecesc", perisabil: true },
+  { cod: "100513", denumire: "Iaurt grecesc 380 g", pret: lei(8.99), areGarantieSGR: false, categorie: "iaurt-grecesc", perisabil: true },
+  { cod: "100720", denumire: "Pâine albă 500 g", pret: lei(5.49), areGarantieSGR: false, categorie: "paine", perisabil: true },
   { cod: "200871", denumire: "Fierbător electric 1,7 L", pret: lei(119.99), areGarantieSGR: false, categorie: "electrocasnice" },
 ];
 
